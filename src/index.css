@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-magazine-primary text-magazine-text;
+  font-feature-settings: "liga" 1, "dlig" 1, "ss01" 1;
+}
+
+@layer base {
+  html {
+    @apply scroll-smooth antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif font-bold text-white tracking-tight;
+  }
+}
+
+@layer components {
+  .container {
+    @apply max-w-8xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+  
+  .magazine-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-magazine gap-6 lg:gap-8;
+  }
+  
+  .featured-article {
+    @apply relative overflow-hidden rounded-lg transition-transform duration-300 hover:scale-[1.02];
+  }
+  
+  .article-image {
+    @apply aspect-[16/9] w-full object-cover transition-transform duration-500;
+  }
+  
+  .article-overlay {
+    @apply absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent;
+  }
+  
+  .article-content {
+    @apply absolute bottom-0 left-0 right-0 p-6 sm:p-8;
+  }
+  
+  .category-badge {
+    @apply inline-flex items-center rounded-full bg-magazine-accent px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-accent-700;
+  }
+  
+  .nav-link {
+    @apply text-magazine-text hover:text-white transition-colors relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-magazine-accent after:transition-all hover:after:w-full;
+  }
+  
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg bg-magazine-accent px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-accent-700 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2 focus:ring-offset-magazine-primary;
+  }
+  
+  .swiper-button-prev-custom,
+  .swiper-button-next-custom,
+  .podcast-swiper-button-prev,
+  .podcast-swiper-button-next {
+    @apply w-10 h-10 bg-magazine-secondary rounded-full flex items-center justify-center cursor-pointer transition-colors hover:bg-magazine-accent;
+  }
+  
+  .swiper-button-prev-custom::after,
+  .swiper-button-next-custom::after,
+  .podcast-swiper-button-prev::after,
+  .podcast-swiper-button-next::after {
+    @apply content-[''] w-2 h-2 border-t-2 border-r-2 border-white transform;
+  }
+  
+  .swiper-button-prev-custom::after,
+  .podcast-swiper-button-prev::after {
+    @apply rotate-[-135deg] ml-1;
+  }
+  
+  .swiper-button-next-custom::after,
+  .podcast-swiper-button-next::after {
+    @apply rotate-45 mr-1;
+  }
+  
+  .swiper-pagination-bullet {
+    @apply bg-magazine-muted opacity-50 !important;
+  }
+  
+  .swiper-pagination-bullet-active {
+    @apply bg-magazine-accent opacity-100 !important;
+  }
+}
+
+/* Swiper Styles */
+.swiper-slide {
+  @apply h-auto;
+}
+
+.magazine-slider,
+.podcast-slider {
+  @apply overflow-visible;
+}
+
+.magazine-slider .swiper-slide,
+.podcast-slider .swiper-slide {
+  @apply opacity-75 transition-opacity duration-300;
+}
+
+.magazine-slider .swiper-slide-active,
+.podcast-slider .swiper-slide-active {
+  @apply opacity-100;
+}
+
+/* ReactQuill Dark Theme Overrides */
+.quill-editor-container .ql-toolbar {
+  @apply bg-dark-700 border-dark-600 rounded-t-md;
+}
+
+.quill-editor-container .ql-container {
+  @apply border-dark-600 rounded-b-md;
+  font-size: 1rem; /* Or your preferred base font size */
+}
+
+/* Toolbar button styling */
+.quill-editor-container .ql-toolbar .ql-stroke {
+  @apply stroke-dark-200;
+}
+.quill-editor-container .ql-toolbar .ql-fill {
+  @apply fill-dark-200;
+}
+.quill-editor-container .ql-toolbar button:hover .ql-stroke,
+.quill-editor-container .ql-toolbar button:focus .ql-stroke,
+.quill-editor-container .ql-toolbar button.ql-active .ql-stroke {
+  @apply stroke-white;
+}
+.quill-editor-container .ql-toolbar button:hover .ql-fill,
+.quill-editor-container .ql-toolbar button:focus .ql-fill,
+.quill-editor-container .ql-toolbar button.ql-active .ql-fill {
+  @apply fill-white;
+}
+
+/* Dropdown styling */
+.quill-editor-container .ql-toolbar .ql-picker-label {
+  @apply text-dark-200;
+}
+.quill-editor-container .ql-toolbar .ql-picker-label:hover,
+.quill-editor-container .ql-toolbar .ql-picker-item:hover {
+  @apply text-white bg-dark-600;
+}
+.quill-editor-container .ql-toolbar .ql-picker-item.ql-selected {
+    @apply text-accent-400;
+}
+
+.quill-editor-container .ql-toolbar .ql-picker-options {
+  @apply bg-dark-700 border-dark-600;
+}
+
+/* Editor content area */
+.quill-editor-container .ql-editor {
+  @apply text-white bg-dark-800; /* Ensure editor background is distinct if needed, or matches container */
+  min-height: 300px; /* Ensure this matches the style prop height or is sufficient */
+}
+
+.quill-editor-container .ql-editor.ql-blank::before {
+  @apply text-dark-400;
+  font-style: normal; /* Override italic placeholder */
+}
+
+/* Adjust color of icons in dropdowns */
+.quill-editor-container .ql-picker-options .ql-picker-item svg {
+    stroke: theme('colors.dark.200');
+}
+.quill-editor-container .ql-picker-options .ql-picker-item:hover svg {
+    stroke: theme('colors.white');
+}
+.quill-editor-container .ql-picker-options .ql-picker-item.ql-selected svg {
+    stroke: theme('colors.accent.400');
+}

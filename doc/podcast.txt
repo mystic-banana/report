@@ -1,0 +1,132 @@
+Podcast
+
+
+Develop a podcast section that allows admin to manage podcast feeds and displays podcast feeds and episodes on the front end. /podcasts. The system should fetch podcast episodes from provided RSS feed URLs, save them, check for new episodes every 24 hours, and display them in categorized listings. Each podcast should have a dedicated detail page with all relevant information and a native audio player for episodes.
+Requirements
+General Requirements
+* Technology Stack:
+    * Scheduler: Implement a scheduling mechanism (e.g., node-cron) to check for new episodes every 24 hours.
+    * Audio Player: Use HTML5 <audio> element for native playback of podcast episodes.
+* Deployment: Ensure the solution is a single-page HTML application for the front end that can run in any browser.
+* Accessibility: Ensure the front-end UI is accessible (e.g., ARIA attributes, keyboard navigation).
+* Security: Sanitize and validate all user inputs (feed URLs, category names) to prevent security vulnerabilities like XSS or SQL injection.
+Admin Panel Requirements
+* URL: /admin/podcasts
+* Authentication: Require admin login (assume an existing authentication system; focus only on podcast management UI and functionality).
+* Features:
+    * Add Podcast Feed:
+        * Form to input podcast category (e.g., Meditation, Spirituality, Wellness) and RSS feed URL.
+        * Validate the RSS feed URL (must be a valid URL and a working podcast RSS feed).
+        * On submission, save the feed to the database and trigger an initial fetch of all past episodes.
+        * Display a success/error message after submission.
+    * Manage Podcast Feeds:
+        * List all saved podcast feeds with columns: Podcast Name, Category, Feed URL, Last Fetched Date, and Actions (Edit/Delete).
+        * Edit action: Pre-fill form with existing feed data for updates.
+        * Delete action: Confirm deletion and remove feed and associated episodes from the database.
+    * Episode Management:
+        * View all episodes for a selected podcast feed with details: Episode Title, Publication Date, Duration, and Audio URL.
+        * Option to manually trigger a fetch for new episodes for a specific feed.
+    * UI:
+        * Use Tailwind CSS for a clean, responsive design.
+        * Include a table for feed listing and a modal or form for adding/editing feeds.
+        * Display loading states during feed fetching or saving.
+
+
+Front-End Requirements  layout  like - https://open.spotify.com/genre/podcasts-page  
+* Podcast Listing Page (/podcasts):
+    * Display podcasts grouped by category (e.g., Meditation, Spirituality).
+    * For each podcast, show:
+        * Podcast name (clickable, linking to the podcast detail page).
+        * Podcast image (from RSS feed, e.g., itunes:image).
+        * Short description (from RSS feed, truncated if too long).
+        * Latest episode title and publication date.
+    * Responsive grid layout using Tailwind CSS (e.g., 2–4 podcasts per row depending on screen size).
+    * Include a loading state while fetching podcast data.
+    * Add a filter or dropdown to view podcasts by category (optional: include “All” category).
+* Podcast Detail Page (/podcasts/:id):
+    * Display podcast details:
+        * Podcast name, image, full description, and author (from RSS feed metadata).
+        * List of all episodes with:
+            * Episode title (clickable to play in native player).
+            * Publication date, duration (if available), and short description.
+            * Play button linking to the episode’s audio URL (from RSS feed enclosure).
+        * Use HTML5 <audio> element for native playback with controls (play, pause, seek, volume).
+    * Responsive design: Stack episode list vertically on mobile, grid or table on desktop.
+    * Include a “Back to Podcasts” link to return to /podcasts.
+* Backend APIs:
+    * GET /api/podcasts: Retrieve all podcasts with metadata (name, image, description, category, latest episode).
+    * GET /api/podcasts/:id: Retrieve detailed podcast data and all episodes.
+* Error Handling:
+    * Display user-friendly error messages if a feed fails to load or an episode’s audio URL is invalid.
+    * Fallback image if podcast or episode lacks an image.
+Database Schema
+* Podcasts Collection/Table:
+    * id: Unique identifier (e.g., MongoDB ObjectID or UUID).
+    * name: Podcast name (from RSS feed).
+    * category: User-defined category (string).
+    * feedUrl: RSS feed URL (string).
+    * description: Podcast description (from RSS feed).
+    * imageUrl: Podcast image URL (from RSS feed).
+    * author: Podcast author (from RSS feed).
+    * lastFetched: Timestamp of last episode fetch (Date).
+* Episodes Collection/Table:
+    * id: Unique identifier.
+    * podcastId: Reference to podcast (foreign key).
+    * title: Episode title (from RSS feed).
+    * description: Episode description (from RSS feed).
+    * pubDate: Publication date (from RSS feed).
+    * audioUrl: Audio file URL (from RSS feed enclosure).
+    * duration: Episode duration (if available, from RSS feed).
+    * guid: Unique episode identifier (from RSS feed, for duplicate checking).
+* 
+Technical Considerations
+* RSS Feed Parsing:
+    * Use rss-parser to extract podcast metadata (title, description, image, author) and episode data (title, description, pubDate, enclosure URL, duration, guid).
+    * Handle malformed or invalid RSS feeds gracefully (log errors, notify admin).
+* Episode Fetching:
+    * On adding a new feed, fetch all episodes and store them in the database.
+    * For the 24-hour check, compare episode guid or link to avoid duplicates.
+    * Store only necessary episode data to optimize database performance.
+* Performance:
+    * Cache podcast metadata and episode lists in memory (e.g., Redis) for faster front-end loading (optional).
+    * Paginate episode lists on the detail page if a podcast has many episodes (e.g., 10 per page).
+* Scalability:
+    * Design the database to handle multiple podcast feeds and thousands of episodes.
+    * Optimize cron jobs to stagger feed checks to avoid overwhelming the server.
+* Error Handling:
+    * Validate feed URLs (must be valid URLs and return valid RSS XML).
+    * Handle cases where RSS feeds become unavailable or change structure.
+    * Log errors for admin review (e.g., failed fetch attempts).
+Deliverables
+1. Admin Panel:
+    * React-based single-page application for managing podcast feeds and episodes.
+    * Backend APIs for CRUD operations on podcast feeds and manual episode fetching.
+    * Cron job for automatic episode fetching every 24 hours.
+2. Front-End Pages:
+    * Podcast listing page (/podcasts) with categorized podcast display.
+    * Podcast detail page (/podcasts/:id) with episode list and native audio player.
+3. Database:
+    * Schema for podcasts and episodes.
+    * Indexes on podcastId (episodes) and feedUrl (podcasts) for performance.
+4. Documentation:
+    * Brief setup instructions for running the backend and front end.
+    * API documentation for all endpoints.
+    * Notes on extending the system (e.g., adding new categories, handling large feeds).
+Example Workflow
+1. Admin:
+    * Admin logs into /admin/podcasts.
+    * Adds a new podcast feed (e.g., “Meditation” category, URL: https://example.com/feed.xml).
+    * System validates the URL, fetches all episodes, and saves them to the database.
+    * Admin sees the podcast in the feed list and can edit/delete it or view episodes.
+    * Every 24 hours, the system checks the feed and adds new episodes automatically.
+2. User:
+    * Visits /podcasts, sees podcasts grouped by category (e.g., Meditation).
+    * Clicks a podcast name, navigates to /podcasts/:id.
+    * Views podcast details and episode list, clicks an episode title, and plays it in the browser’s native audio player.
+Notes
+* Ensure podcast images and audio URLs are accessible (test CORS compatibility).
+* Use SUPABASE FILE STORage for simplicity and compatibility.
+* Avoid <form> onSubmit for React components (use button click handlers due to sandbox restrictions).
+* Use className instead of class in JSX.
+* Test with real podcast RSS feeds (e.g., public feeds like NPR or BBC podcasts) to ensure parsing works correctly.
+* For native audio player, ensure fallback content for unsupported browsers (e.g., “Your browser does not support the audio element”).

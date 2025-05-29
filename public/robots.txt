@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Allow all bots to access the entire site
+# Disallow admin routes
+Disallow: /admin/
+Disallow: /dashboard/
+
+# Sitemap location
+Sitemap: https://mysticbanana.com/sitemap.xml
