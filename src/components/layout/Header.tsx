@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Menu, X, Search, UserCircle } from 'lucide-react';
-import { useAuthStore } from '../../store/authStore';
-import MobileMenu from './MobileMenu';
-import UserMenu from './UserMenu';
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { Menu, X, Search, UserCircle } from "lucide-react";
+import { useAuthStore } from "../../store/authStore";
+import MobileMenu from "./MobileMenu";
+import UserMenu from "./UserMenu";
 
 const Header: React.FC = () => {
   const { isAuthenticated, user } = useAuthStore();
@@ -15,17 +15,17 @@ const Header: React.FC = () => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);
     };
-    
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   return (
-    <header 
+    <header
       className={`fixed top-0 w-full z-50 transition-all duration-300 ${
-        isScrolled 
-          ? 'bg-dark-950/95 backdrop-blur-sm border-b border-dark-800'
-          : 'bg-transparent'
+        isScrolled
+          ? "bg-dark-950/95 backdrop-blur-sm border-b border-dark-800"
+          : "bg-transparent"
       }`}
     >
       <div className="container h-16 flex items-center justify-between">
@@ -37,11 +37,11 @@ const Header: React.FC = () => {
 
         <nav className="hidden md:flex items-center space-x-8">
           {[
-            ['Magazine', '/magazine'],
-            ['Podcasts', '/podcasts'],
-            ['Tarot', '/tarot'],
-            ['Horoscopes', '/horoscopes'],
-            ['Shop', '/shop'],
+            ["Magazine", "/magazine"],
+            ["Podcasts", "/podcasts"],
+            ["Astrology", "/astrology"],
+            ["Horoscopes", "/astrology/horoscopes"],
+            ["Birth Chart", "/astrology/birth-chart"],
           ].map(([label, path]) => (
             <Link
               key={path}
@@ -54,50 +54,49 @@ const Header: React.FC = () => {
         </nav>
 
         <div className="flex items-center space-x-4">
-          <button 
+          <button
             className="p-2 text-gray-400 hover:text-white transition-colors"
             aria-label="Search"
           >
             <Search className="w-5 h-5" />
           </button>
-          
+
           {isAuthenticated ? (
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                 className="flex items-center space-x-2"
               >
                 {user?.avatarUrl ? (
-                  <img 
-                    src={user.avatarUrl} 
-                    alt={user.name} 
-                    className="w-8 h-8 rounded-full ring-2 ring-accent-500" 
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.name}
+                    className="w-8 h-8 rounded-full ring-2 ring-accent-500"
                   />
                 ) : (
                   <UserCircle className="w-8 h-8 text-gray-400" />
                 )}
               </button>
-              
-              {isUserMenuOpen && <UserMenu onClose={() => setIsUserMenuOpen(false)} />}
+
+              {isUserMenuOpen && (
+                <UserMenu onClose={() => setIsUserMenuOpen(false)} />
+              )}
             </div>
           ) : (
             <div className="hidden md:flex items-center space-x-4">
-              <Link 
-                to="/login" 
+              <Link
+                to="/login"
                 className="text-sm font-medium text-gray-300 hover:text-white transition-colors"
               >
                 Log In
               </Link>
-              <Link 
-                to="/signup" 
-                className="btn-primary"
-              >
+              <Link to="/signup" className="btn-primary">
                 Sign Up
               </Link>
             </div>
           )}
-          
-          <button 
+
+          <button
             className="md:hidden p-2 text-gray-400 hover:text-white transition-colors"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             aria-label="Toggle menu"
@@ -110,8 +109,10 @@ const Header: React.FC = () => {
           </button>
         </div>
       </div>
-      
-      {isMobileMenuOpen && <MobileMenu onClose={() => setIsMobileMenuOpen(false)} />}
+
+      {isMobileMenuOpen && (
+        <MobileMenu onClose={() => setIsMobileMenuOpen(false)} />
+      )}
     </header>
   );
 };
