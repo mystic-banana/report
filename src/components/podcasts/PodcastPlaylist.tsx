@@ -15,24 +15,27 @@ interface PlaylistEpisode {
   published_at: string;
 }
 
-// Define specific database response types for type safety
-interface PlaylistEpisodeResponse {
+// Define database types for type safety
+interface EpisodeDetails {
   id: string;
-  episode_id: string;
-  playlist_id: string;
-  added_at: string;
+  title: string;
+  image_url: string;
+  audio_url: string;
+  duration: string;
+  pub_date: string;
+  podcast_id: string;
   podcasts: {
     id: string;
     name: string;
   }[];
-  podcast_episodes: {
-    id: string;
-    title: string;
-    image_url: string;
-    audio_url: string;
-    duration: string;
-    published_at: string;
-  }[];
+}
+
+interface PlaylistEpisodeItem {
+  id: string;
+  episode_id: string;
+  playlist_id: string;
+  added_at: string;
+  episode_details?: EpisodeDetails | null;
 }
 
 interface Playlist {
@@ -99,18 +102,53 @@ const PodcastPlaylist: React.FC<PodcastPlaylistProps> = ({
       // Now fetch episodes for each playlist
       const playlistsWithEpisodes = await Promise.all(
         (data || []).map(async (playlist) => {
-          const { data: episodesData, error: episodesError } = await supabase
+          // First get the playlist episodes
+          const { data: playlistEpisodesData, error: playlistEpisodesError } = await supabase
             .from('podcast_playlist_episodes')
-            .select(`
-              id,
-              episode_id,
-              playlist_id,
-              added_at,
-              podcasts(id, name),
-              podcast_episodes(id, title, image_url, audio_url, duration, published_at)
-            `)
+            .select('id, episode_id, playlist_id, added_at')
             .eq('playlist_id', playlist.id)
             .order('added_at', { ascending: false });
+            
+          if (playlistEpisodesError) {
+            console.error('Error fetching playlist episodes:', playlistEpisodesError);
+            throw playlistEpisodesError;
+          }
+          
+          // Then get the episode details for each episode_id
+          const episodeIds = playlistEpisodesData?.map(item => item.episode_id) || [];
+          
+          let episodesData: PlaylistEpisodeItem[] = [];
+          let episodesError: any = null;
+          
+          if (episodeIds.length > 0) {
+            const { data: episodesResult, error: episodesQueryError } = await supabase
+              .from('episodes')
+              .select(`
+                id, 
+                title, 
+                image_url, 
+                audio_url, 
+                duration, 
+                pub_date,
+                podcast_id,
+                podcasts!inner(id, name)
+              `)
+              .in('id', episodeIds);
+              
+            const typedEpisodesResult = episodesResult as EpisodeDetails[] || [];
+            episodesError = episodesQueryError;
+            
+            // Combine the playlist episode data with the episode details
+            if (typedEpisodesResult && playlistEpisodesData) {
+              episodesData = playlistEpisodesData.map(playlistEpisode => {
+                const episodeDetails = typedEpisodesResult.find(ep => ep.id === playlistEpisode.episode_id);
+                return { 
+                  ...playlistEpisode,
+                  episode_details: episodeDetails || null
+                } as PlaylistEpisodeItem;
+              });
+            }
+          }
           
           if (episodesError) {
             console.error('Error fetching playlist episodes:', episodesError);
@@ -124,19 +162,22 @@ const PodcastPlaylist: React.FC<PodcastPlaylistProps> = ({
           const episodes: PlaylistEpisode[] = [];
           
           if (episodesData && Array.isArray(episodesData)) {
-            for (const item of episodesData as PlaylistEpisodeResponse[]) {
-              // Access the first item in the podcast_episodes and podcasts arrays
-              const podcastEpisode = item.podcast_episodes && item.podcast_episodes.length > 0 ? item.podcast_episodes[0] : null;
-              const podcast = item.podcasts && item.podcasts.length > 0 ? item.podcasts[0] : null;
+            for (const item of episodesData) {
+              // Get the episode details from the combined data
+              const episodeDetails = item.episode_details;
+              if (!episodeDetails) continue; // Skip if no episode details
+              
+              // Get the podcast data from the episodes relation
+              const podcast = episodeDetails.podcasts && episodeDetails.podcasts[0];
               
               const episode: PlaylistEpisode = {
                 id: item.episode_id,
-                title: podcastEpisode?.title || 'Unknown Episode',
+                title: episodeDetails.title || 'Unknown Title',
                 podcast_name: podcast?.name || 'Unknown Podcast',
-                image_url: podcastEpisode?.image_url || '',
-                audio_url: podcastEpisode?.audio_url || '',
-                duration: podcastEpisode?.duration || '',
-                published_at: podcastEpisode?.published_at || ''
+                image_url: episodeDetails.image_url || '',
+                audio_url: episodeDetails.audio_url || '',
+                duration: episodeDetails.duration || '',
+                published_at: episodeDetails.pub_date || ''
               };
               episodes.push(episode);
             }

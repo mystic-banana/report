@@ -24,6 +24,7 @@ const getSupabaseAdminClient = (): SupabaseClient => {
 };
 
 serve(async (req: Request) => {
+  console.log('[add-podcast-feed] Function invoked. Method:', req.method);
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -104,7 +105,7 @@ serve(async (req: Request) => {
 
     const { data: podcastId, error: rpcError } = await supabaseAdmin.rpc('add_podcast_with_episodes_txn', {
         p_name: feedDetails.name,
-        p_category: category, // Use the user-provided category
+        p_category_id: category, // Use the user-provided category_id, SQL function expects UUID
         p_feed_url: feedUrl,
         p_description: feedDetails.description,
         p_image_url: feedDetails.image_url,
@@ -139,7 +140,15 @@ serve(async (req: Request) => {
 
     console.log(`[add-podcast-feed] Successfully added podcast with ID: ${podcastId} and its episodes.`);
 
-    return new Response(JSON.stringify({ message: 'Podcast feed added successfully', podcastId: podcastId }), {
+    return new Response(JSON.stringify({
+      message: 'Podcast feed added successfully',
+      podcastId: podcastId,
+      podcastName: feedDetails.name, // Include the podcast name
+      episodeCount: parsedEpisodes.length, // Include the episode count
+      imageUrl: feedDetails.image_url, // Include the image URL
+      description: feedDetails.description, // Include the description
+      author: feedDetails.author // Include the author
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 201, // Created
     });

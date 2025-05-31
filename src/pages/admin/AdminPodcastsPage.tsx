@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { PodcastFeed, PodcastCategory } from '../../types';
-import { Trash2, Plus, RefreshCw, ExternalLink, Grid, List, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, Plus, RefreshCw, ExternalLink, Grid, List, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import PodcastCategoryManager from '../../components/admin/PodcastCategoryManager';
-import { fetchEpisodesForPodcast } from '../../utils/fetchEpisodes';
+// We no longer need fetchEpisodesForPodcast as the Edge Function handles episode fetching
 
 const AdminPodcastsPage: React.FC = () => {
   const [podcasts, setPodcasts] = useState<PodcastFeed[]>([]);
@@ -19,52 +19,70 @@ const AdminPodcastsPage: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [showCategoryManager, setShowCategoryManager] = useState(false);
 
+  // State for Edit Podcast Modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPodcast, setEditingPodcast] = useState<PodcastFeed | null>(null);
+  const initialEditFormData = {
+    name: '',
+    description: '',
+    image_url: '',
+    author: '',
+    category_id: '',
+    status: 'draft' as 'draft' | 'published' | 'archived',
+  };
+  const [editFormData, setEditFormData] = useState(initialEditFormData);
+
+  // Callback for PodcastCategoryManager to trigger a full refresh
+  const handleCategoriesChanged = (updatedCategories: PodcastCategory[]) => {
+    setCategories(updatedCategories); // Keep local category state up-to-date for the dropdown
+    fetchCategoriesAndPodcasts(); // Re-fetch everything to ensure podcast list reflects category changes
+  };
+
   // Fetch podcasts and categories on component mount
   useEffect(() => {
-    fetchPodcasts();
-    fetchCategories();
+    fetchCategoriesAndPodcasts();
   }, []);
 
-  const fetchPodcasts = async () => {
+  const fetchCategoriesData = async (): Promise<PodcastCategory[]> => {
     try {
-      setLoading(true);
-      setError(null);
-      
-      // First, get all podcasts
+      const { data, error } = await supabase
+        .from('podcast_categories')
+        .select('*')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching podcast categories:', error.message);
+        // Do not fall back to temp categories for the main state.
+        // UI should handle the case where actual categories are missing.
+        setCategories([]); 
+        return [];
+      }
+      const fetchedCategories = data || [];
+      setCategories(fetchedCategories);
+      return fetchedCategories;
+    } catch (err: any) {
+      console.error('Critical error fetching podcast categories:', err.message);
+      setCategories([]);
+      return [];
+    }
+  };
+
+  const fetchPodcastsData = async (currentCategories: PodcastCategory[]) => {
+    try {
       const { data: podcastsData, error: podcastsError } = await supabase
         .from('podcasts')
         .select('*')
         .order('name');
       
-      if (podcastsError) throw podcastsError;
-      
-      // Try to get categories, but handle the case where the table doesn't exist
-      let categoryMap: Record<string, string> = {};
-      
-      try {
-        const { data: categoriesData, error: categoriesError } = await supabase
-          .from('podcast_categories')
-          .select('*');
-          
-        if (!categoriesError && categoriesData) {
-          // Create a map of category IDs to names for quick lookup
-          categoriesData.forEach(category => {
-            categoryMap[category.id] = category.name;
-          });
-        }
-      } catch (err) {
-        console.log('Error fetching categories, using fallback');
-        // Use fallback temp categories
-        categoryMap = {
-          'temp-tech': 'Technology',
-          'temp-business': 'Business',
-          'temp-science': 'Science',
-          'temp-entertainment': 'Entertainment',
-          'temp-health': 'Health'
-        };
+      if (podcastsError) {
+        throw podcastsError;
       }
       
-      // Map the data to include the category name
+      const categoryMap: Record<string, string> = {};
+      currentCategories.forEach(category => {
+        categoryMap[category.id] = category.name;
+      });
+      
       const podcastsWithCategories = podcastsData?.map(podcast => ({
         ...podcast,
         category_name: podcast.category_id && categoryMap[podcast.category_id] 
@@ -76,52 +94,16 @@ const AdminPodcastsPage: React.FC = () => {
     } catch (err: any) {
       console.error('Error fetching podcasts:', err);
       setError(err.message || 'Failed to load podcasts');
-    } finally {
-      setLoading(false);
+      setPodcasts([]); // Set to empty on error
     }
   };
-  
-  const fetchCategories = async () => {
-    try {
-      // Create a temporary set of categories until the table is created
-      const tempCategories = [
-        { id: 'temp-tech', name: 'Technology', description: 'Tech-related podcasts', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-        { id: 'temp-business', name: 'Business', description: 'Business and entrepreneurship', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-        { id: 'temp-science', name: 'Science', description: 'Science and research', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-        { id: 'temp-entertainment', name: 'Entertainment', description: 'Entertainment and pop culture', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-        { id: 'temp-health', name: 'Health', description: 'Health and wellness', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-      ];
-      
-      // Try to fetch from database first
-      const { data, error } = await supabase
-        .from('podcast_categories')
-        .select('*')
-        .order('name');
-      
-      // If there's an error about the table not existing, use temp categories
-      if (error && error.message.includes('does not exist')) {
-        console.log('Using temporary categories until podcast_categories table is created');
-        setCategories(tempCategories);
-        return;
-      }
-      
-      // If there's another error, throw it
-      if (error) throw error;
-      
-      // If we got data, use it
-      setCategories(data || tempCategories);
-    } catch (err: any) {
-      console.error('Error fetching podcast categories:', err);
-      // Don't set the main error state for this, as it's not critical
-      // Use temporary categories as fallback
-      setCategories([
-        { id: 'temp-tech', name: 'Technology', description: 'Tech-related podcasts', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-        { id: 'temp-business', name: 'Business', description: 'Business and entrepreneurship', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-        { id: 'temp-science', name: 'Science', description: 'Science and research', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-        { id: 'temp-entertainment', name: 'Entertainment', description: 'Entertainment and pop culture', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-        { id: 'temp-health', name: 'Health', description: 'Health and wellness', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-      ]);
-    }
+
+  const fetchCategoriesAndPodcasts = async () => {
+    setLoading(true);
+    setError(null);
+    const fetchedCategories = await fetchCategoriesData();
+    await fetchPodcastsData(fetchedCategories);
+    setLoading(false);
   };
 
   const handleAddPodcast = async (e: React.FormEvent) => {
@@ -142,38 +124,45 @@ const AdminPodcastsPage: React.FC = () => {
       
       console.log('Adding podcast with category ID:', selectedCategoryId);
       
-      // Use direct Supabase call instead of edge function to process the feed
-      // This will avoid token expiration issues
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: podcastData, error: podcastError } = await supabase
-        .from('podcasts')
-        .insert({
-          feed_url: newFeedUrl,
-          category_id: selectedCategoryId,
-          submitter_id: user?.id || null, // Set submitter_id for admin auto-approval
-          category: selectedCategoryId, // Add the category field to satisfy the not-null constraint
-          name: 'Loading...',  // Will be updated with actual data once processed
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+      // Get the current session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
       
-      if (podcastError) throw podcastError;
-      
-      // Podcast inserted, show success and reset form instantly
-      setAddFeedSuccess('Podcast added! Episodes will appear soon.');
-      setNewFeedUrl('');
-      fetchPodcasts();
-      setTimeout(() => setAddFeedSuccess(null), 5000);
-      
-      // Trigger episode fetch and metadata update in the background (do not await, non-blocking)
-      if (podcastData && podcastData.id && podcastData.feed_url) {
-        setTimeout(() => {
-          void fetchEpisodesForPodcast(podcastData.id, podcastData.feed_url);
-        }, 0);
+      if (!session) {
+        throw new Error('You must be logged in to add a podcast');
       }
       
+      // Call the Edge Function to process the feed
+      // Use the hardcoded Supabase URL for this project
+      const supabaseUrl = 'https://tbpnsxwldrxdlirxfcor.supabase.co';
+      const response = await fetch(
+        `${supabaseUrl}/functions/v1/add-podcast-feed`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            feedUrl: newFeedUrl,
+            category: selectedCategoryId
+          })
+        }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to add podcast: ${response.status}`);
+      }
+      
+      const responseData = await response.json();
+      console.log('Edge Function response:', responseData);
+      
+      setAddFeedSuccess(`Podcast "${responseData.podcastName || 'Unknown'}" added successfully with ${responseData.episodeCount || 0} episodes!`);
+      setNewFeedUrl(''); // Clear the input
+      fetchCategoriesAndPodcasts(); // Refresh the list to show the new podcast with its real name
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setAddFeedSuccess(null), 5000);
     } catch (err: any) {
       console.error('Error adding podcast:', err);
       setAddFeedError(err.message || 'Failed to add podcast');
@@ -195,32 +184,7 @@ const AdminPodcastsPage: React.FC = () => {
       const podcast = podcasts.find(p => p.id === podcastId);
       const podcastName = podcast ? podcast.name : 'Unknown podcast';
       
-      // First, get count of episodes to be deleted for verification
-      const { count: episodeCount, error: countError } = await supabase
-        .from('episodes')
-        .select('id', { count: 'exact', head: true })
-        .eq('podcast_id', podcastId);
-        
-      if (countError) {
-        console.error('Error counting episodes:', countError);
-        // Continue with deletion even if count fails
-      } else {
-        console.log(`Deleting podcast ${podcastName} with ${episodeCount || 0} episodes`);
-      }
-      
-      // Start a transaction by using RPC if available, otherwise do separate calls
-      // First delete all episodes for this podcast
-      const { error: episodesError } = await supabase
-        .from('episodes')
-        .delete()
-        .eq('podcast_id', podcastId);
-      
-      if (episodesError) {
-        console.error('Error deleting episodes:', episodesError);
-        throw new Error(`Failed to delete episodes: ${episodesError.message}`);
-      }
-      
-      // Then delete the podcast
+      // Directly delete the podcast. Episodes will be deleted by ON DELETE CASCADE.
       const { error: podcastError } = await supabase
         .from('podcasts')
         .delete()
@@ -239,8 +203,8 @@ const AdminPodcastsPage: React.FC = () => {
         .single();
       
       if (checkData) {
-        console.warn('Podcast still exists after deletion attempt');
-        throw new Error('Failed to delete podcast completely. Please try again.');
+        console.warn('Podcast still exists after deletion attempt. This might indicate an issue with RLS or other constraints.');
+        throw new Error('Failed to delete podcast completely. Please check database logs or RLS policies.');
       }
       
       // Success message
@@ -252,13 +216,88 @@ const AdminPodcastsPage: React.FC = () => {
       }, 5000);
       
       // Refresh the podcast list
-      fetchPodcasts();
+      fetchCategoriesAndPodcasts();
       
     } catch (err: any) {
       console.error('Error deleting podcast:', err);
       setError(err.message || 'Failed to delete podcast');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Toggle category manager visibility
+  // Edit Modal Functions
+  const handleOpenEditModal = (podcast: PodcastFeed) => {
+    setEditingPodcast(podcast);
+    setEditFormData({
+      name: podcast.name || '',
+      description: podcast.description || '',
+      image_url: podcast.image_url || '',
+      author: podcast.author || '',
+      category_id: podcast.category_id || '',
+      status: (podcast.status as 'draft' | 'published' | 'archived') || 'draft',
+    });
+    setShowEditModal(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setShowEditModal(false);
+    setEditingPodcast(null);
+    setEditFormData(initialEditFormData);
+  };
+
+  const handleEditFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleUpdatePodcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPodcast) {
+      setError('No podcast selected for editing.');
+      return;
+    }
+
+    setLoading(true); // Or a more specific loading state like setUpdatingPodcast(true)
+    setError(null);
+    setAddFeedSuccess(null);
+
+    try {
+      const updatePayload = {
+        name: editFormData.name, // Corrected from title
+        description: editFormData.description || null, // Ensure empty strings become null if appropriate for DB
+        image_url: editFormData.image_url || null,
+        author: editFormData.author || null,
+        category_id: editFormData.category_id || null,
+        status: editFormData.status,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: updateError } = await supabase
+        .from('podcasts')
+        .update(updatePayload)
+        .eq('id', editingPodcast.id);
+
+      if (updateError) {
+        console.error('Error updating podcast:', updateError);
+        throw new Error(`Failed to update podcast: ${updateError.message}`);
+      }
+
+      setAddFeedSuccess(`Successfully updated "${editFormData.name}".`);
+      fetchCategoriesAndPodcasts(); // Refresh the list
+      handleCloseEditModal(); // Close the modal on success
+
+      setTimeout(() => {
+        setAddFeedSuccess(null);
+      }, 5000);
+
+    } catch (err: any) {
+      console.error('Error in handleUpdatePodcast:', err);
+      setError(err.message || 'An unexpected error occurred while updating the podcast.');
+      // Optionally, keep the modal open on error so the user can retry or see the data
+    } finally {
+      setLoading(false); // Or setUpdatingPodcast(false)
     }
   };
 
@@ -296,7 +335,7 @@ const AdminPodcastsPage: React.FC = () => {
             )}
           </button>
           <button
-            onClick={fetchPodcasts}
+            onClick={fetchCategoriesAndPodcasts}
             className="flex items-center px-3 py-2 bg-dark-700 hover:bg-dark-600 rounded-md text-white transition-colors"
             title="Refresh podcast list"
           >
@@ -307,7 +346,7 @@ const AdminPodcastsPage: React.FC = () => {
       </div>
       
       {/* Category Manager (collapsible) */}
-      {showCategoryManager && <PodcastCategoryManager onCategoriesChange={setCategories} />}
+      {showCategoryManager && <PodcastCategoryManager onCategoriesChange={handleCategoriesChanged} />}
       
       {/* Add podcast form */}
       <div className="bg-dark-800 rounded-lg p-6 mb-8">
@@ -484,6 +523,13 @@ const AdminPodcastsPage: React.FC = () => {
                   >
                     <ExternalLink size={14} />
                   </a>
+                  <button
+                    onClick={() => handleOpenEditModal(podcast)}
+                    className="p-1.5 bg-dark-700 hover:bg-blue-700 rounded text-gray-300 hover:text-white transition-colors"
+                    title="Edit podcast"
+                  >
+                    <Pencil size={14} />
+                  </button>
                   <button 
                     onClick={() => handleDeletePodcast(podcast.id)}
                     className="p-1.5 bg-dark-700 hover:bg-red-900 rounded text-gray-300 hover:text-white transition-colors"
@@ -550,6 +596,13 @@ const AdminPodcastsPage: React.FC = () => {
                       >
                         <ExternalLink size={14} />
                       </a>
+                      <button
+                        onClick={() => handleOpenEditModal(podcast)}
+                        className="p-1.5 bg-dark-700 hover:bg-blue-700 rounded text-gray-300 hover:text-white transition-colors"
+                        title="Edit podcast"
+                      >
+                        <Pencil size={14} />
+                      </button>
                       <button 
                         onClick={() => handleDeletePodcast(podcast.id)}
                         className="p-1.5 bg-dark-700 hover:bg-red-900 rounded text-gray-300 hover:text-white transition-colors"
@@ -563,6 +616,111 @@ const AdminPodcastsPage: React.FC = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Edit Podcast Modal */}
+      {showEditModal && editingPodcast && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-dark-800 p-6 sm:p-8 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-semibold text-white mb-6">Edit Podcast: <span className='text-accent-400'>{editingPodcast.name}</span></h2>
+            <form onSubmit={handleUpdatePodcast}> {/* handleUpdatePodcast will be created in Phase 3 */}
+              <div className="space-y-5">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-1">Podcast Name</label>
+                  <input
+                    type="text"
+                    name="name"
+                    id="name"
+                    value={editFormData.name}
+                    onChange={handleEditFormChange}
+                    className="w-full bg-dark-700 border-dark-600 text-white rounded-md p-2.5 focus:ring-accent-500 focus:border-accent-500 shadow-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+                  <textarea
+                    name="description"
+                    id="description"
+                    value={editFormData.description}
+                    onChange={handleEditFormChange}
+                    rows={4}
+                    className="w-full bg-dark-700 border-dark-600 text-white rounded-md p-2.5 focus:ring-accent-500 focus:border-accent-500 shadow-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="image_url" className="block text-sm font-medium text-gray-300 mb-1">Image URL</label>
+                  <input
+                    type="url"
+                    name="image_url"
+                    id="image_url"
+                    value={editFormData.image_url}
+                    onChange={handleEditFormChange}
+                    className="w-full bg-dark-700 border-dark-600 text-white rounded-md p-2.5 focus:ring-accent-500 focus:border-accent-500 shadow-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="author" className="block text-sm font-medium text-gray-300 mb-1">Author</label>
+                  <input
+                    type="text"
+                    name="author"
+                    id="author"
+                    value={editFormData.author}
+                    onChange={handleEditFormChange}
+                    className="w-full bg-dark-700 border-dark-600 text-white rounded-md p-2.5 focus:ring-accent-500 focus:border-accent-500 shadow-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="category_id" className="block text-sm font-medium text-gray-300 mb-1">Category</label>
+                  <select
+                    name="category_id"
+                    id="category_id"
+                    value={editFormData.category_id}
+                    onChange={handleEditFormChange}
+                    className="w-full bg-dark-700 border-dark-600 text-white rounded-md p-2.5 focus:ring-accent-500 focus:border-accent-500 shadow-sm"
+                    required
+                  >
+                    <option value="" disabled>Select a category</option>
+                    {categories.map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="status" className="block text-sm font-medium text-gray-300 mb-1">Status</label>
+                  <select
+                    name="status"
+                    id="status"
+                    value={editFormData.status}
+                    onChange={handleEditFormChange}
+                    className="w-full bg-dark-700 border-dark-600 text-white rounded-md p-2.5 focus:ring-accent-500 focus:border-accent-500 shadow-sm"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-8 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={handleCloseEditModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-300 bg-dark-600 hover:bg-dark-500 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-800 focus:ring-gray-500 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm font-medium text-white bg-accent-600 hover:bg-accent-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-800 focus:ring-accent-500 transition-colors shadow-sm"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

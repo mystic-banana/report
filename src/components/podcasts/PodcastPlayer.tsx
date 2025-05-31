@@ -1,452 +1,368 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, Maximize2, Minimize2 } from 'lucide-react';
-import AdUnit from '../ads/AdUnit';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, Maximize2, Minimize2, Music } from 'lucide-react';
+import { usePlayerStore } from '../../store/playerStore';
 
-interface Episode {
-  id: string;
-  title: string;
-  description: string;
-  audio_url: string;
-  duration: number;
-  published_at: string;
-  image_url?: string;
-  podcast_id: string;
-  podcast_name?: string;
-}
+const PodcastPlayer: React.FC = () => {
+  const {
+    currentEpisode,
+    episodeQueue,
+    currentQueueIndex,
+    isPlaying,
+    volume,
+    isMuted,
+    // setQueueAndPlay, // Will be used when playlist UI is integrated
+    playNext,
+    playPrevious,
+    togglePlayPause,
+    setIsPlaying, 
+    setVolume,
+    toggleMute,
+    setIsMuted,
+  } = usePlayerStore();
 
-interface PodcastPlayerProps {
-  episode: Episode | null;
-  onPlayNextEpisode?: () => void;
-  onPlayPreviousEpisode?: () => void;
-  hasPreviousEpisode?: boolean;
-  hasNextEpisode?: boolean;
-  onPlayerStateChange?: (isPlaying: boolean) => void;
-}
-
-const PodcastPlayer: React.FC<PodcastPlayerProps> = ({
-  episode,
-  onPlayNextEpisode,
-  onPlayPreviousEpisode,
-  hasPreviousEpisode = false,
-  hasNextEpisode = false,
-  onPlayerStateChange
-}) => {
-  const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
+  const [playbackRate, setPlaybackRate] = useState(1); 
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressBarRef = useRef<HTMLDivElement | null>(null);
-  
-  // Set up audio element when episode changes
+
   useEffect(() => {
-    if (!episode) return;
-    
-    if (audioRef.current) {
+    if (audioRef.current && currentEpisode) {
+      if (audioRef.current.src !== currentEpisode.audio_url) {
+        audioRef.current.src = currentEpisode.audio_url;
+        audioRef.current.load(); 
+        setCurrentTime(0); 
+        setDuration(0);
+      }
+    } else if (audioRef.current && !currentEpisode) {
       audioRef.current.pause();
-      setIsPlaying(false);
+      audioRef.current.src = '';
       setCurrentTime(0);
       setDuration(0);
-      
-      // Reset the audio source
-      audioRef.current.src = episode.audio_url;
-      audioRef.current.load();
-      
-      // Auto play when a new episode is loaded
-      const playPromise = audioRef.current.play();
-      
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setIsPlaying(true);
-            if (onPlayerStateChange) onPlayerStateChange(true);
-          })
-          .catch(error => {
-            console.error('Auto-play was prevented:', error);
-            setIsPlaying(false);
-            if (onPlayerStateChange) onPlayerStateChange(false);
-          });
-      }
+      setIsPlaying(false); 
     }
-  }, [episode?.id]);
-  
-  // Update player state when isPlaying changes
-  useEffect(() => {
-    if (onPlayerStateChange) {
-      onPlayerStateChange(isPlaying);
-    }
-  }, [isPlaying, onPlayerStateChange]);
+  }, [currentEpisode?.id, setIsPlaying]); 
 
-  // Set up event listeners
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (isPlaying && currentEpisode) {
+      audioRef.current.play().catch(error => {
+        console.error("Error attempting to play audio:", error);
+        setIsPlaying(false); 
+      });
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying, currentEpisode, setIsPlaying]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+      audioRef.current.muted = isMuted;
+    }
+  }, [volume, isMuted]);
+
   useEffect(() => {
     const audio = audioRef.current;
-    
     if (!audio) return;
-    
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-    
-    const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
-    };
-    
-    const handlePlay = () => {
-      setIsPlaying(true);
-      if (onPlayerStateChange) onPlayerStateChange(true);
-    };
-    
-    const handlePause = () => {
-      setIsPlaying(false);
-      if (onPlayerStateChange) onPlayerStateChange(false);
-    };
-    
-    const handleEnded = () => {
-      setIsPlaying(false);
-      if (onPlayerStateChange) onPlayerStateChange(false);
-      
-      // Auto play next episode if available
-      if (hasNextEpisode && onPlayNextEpisode) {
-        onPlayNextEpisode();
+
+    const handleTimeUpdateEvent = () => setCurrentTime(audio.currentTime);
+    const handleLoadedMetadataEvent = () => setDuration(audio.duration);
+    const handlePlayEvent = () => setIsPlaying(true); 
+    const handlePauseEvent = () => setIsPlaying(false); 
+    const handleEndedEvent = () => playNext(); 
+    const handleWaitingEvent = () => setIsBuffering(true);
+    const handleCanPlayEvent = () => setIsBuffering(false);
+    const handleVolumeChangeAudioEvent = () => {
+      if (audioRef.current) {
+        setVolume(audioRef.current.volume);
+        setIsMuted(audioRef.current.muted);
       }
     };
-    
-    const handleWaiting = () => {
-      setIsBuffering(true);
-    };
-    
-    const handleCanPlay = () => {
-      setIsBuffering(false);
-    };
-    
-    // Add event listeners
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('pause', handlePause);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('waiting', handleWaiting);
-    audio.addEventListener('canplay', handleCanPlay);
-    
-    // Update playback rate
+
+    audio.addEventListener('timeupdate', handleTimeUpdateEvent);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadataEvent);
+    audio.addEventListener('play', handlePlayEvent);
+    audio.addEventListener('pause', handlePauseEvent);
+    audio.addEventListener('ended', handleEndedEvent);
+    audio.addEventListener('waiting', handleWaitingEvent);
+    audio.addEventListener('canplay', handleCanPlayEvent);
+    audio.addEventListener('volumechange', handleVolumeChangeAudioEvent);
+
     audio.playbackRate = playbackRate;
-    
-    // Cleanup
+
     return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('waiting', handleWaiting);
-      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('timeupdate', handleTimeUpdateEvent);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadataEvent);
+      audio.removeEventListener('play', handlePlayEvent);
+      audio.removeEventListener('pause', handlePauseEvent);
+      audio.removeEventListener('ended', handleEndedEvent);
+      audio.removeEventListener('waiting', handleWaitingEvent);
+      audio.removeEventListener('canplay', handleCanPlayEvent);
+      audio.removeEventListener('volumechange', handleVolumeChangeAudioEvent);
     };
-  }, [hasNextEpisode, onPlayNextEpisode, playbackRate, onPlayerStateChange]);
-  
-  const togglePlayPause = () => {
-    if (!audioRef.current) return;
-    
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch(error => {
-        console.error('Play was prevented:', error);
-      });
+  }, [playNext, setIsPlaying, setVolume, setIsMuted, playbackRate]); 
+
+  const handleTogglePlayPause = useCallback(() => {
+    if (!currentEpisode) return;
+    togglePlayPause();
+  }, [togglePlayPause, currentEpisode]);
+
+  const handlePlayNext = useCallback(() => {
+    playNext();
+  }, [playNext]);
+
+  const handlePlayPrevious = useCallback(() => {
+    playPrevious();
+  }, [playPrevious]);
+
+  const handleVolumeSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setVolume(parseFloat(e.target.value));
+  };
+
+  const handleToggleMute = useCallback(() => {
+    toggleMute();
+  }, [toggleMute]);
+
+  const handleProgressBarSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current || !progressBarRef.current || !currentEpisode) return;
+    const progressBar = progressBarRef.current;
+    const clickPositionInPixels = e.pageX - progressBar.getBoundingClientRect().left;
+    const clickPositionInPercentage = clickPositionInPixels / progressBar.offsetWidth;
+    const newTime = duration * clickPositionInPercentage;
+    if (isFinite(newTime)) {
+        audioRef.current.currentTime = newTime;
+        setCurrentTime(newTime); 
     }
   };
-  
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVolume = parseFloat(e.target.value);
-    setVolume(newVolume);
-    
-    if (audioRef.current) {
-      audioRef.current.volume = newVolume;
-      setIsMuted(newVolume === 0);
-    }
-  };
-  
-  const toggleMute = () => {
-    if (!audioRef.current) return;
-    
-    const newMutedState = !isMuted;
-    setIsMuted(newMutedState);
-    
-    if (newMutedState) {
-      audioRef.current.volume = 0;
-    } else {
-      audioRef.current.volume = volume;
-    }
-  };
-  
-  const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!progressBarRef.current || !audioRef.current) return;
-    
-    const rect = progressBarRef.current.getBoundingClientRect();
-    const clickPosition = (e.clientX - rect.left) / rect.width;
-    const newTime = clickPosition * duration;
-    
-    setCurrentTime(newTime);
-    audioRef.current.currentTime = newTime;
-  };
-  
-  const toggleExpand = () => {
-    setIsExpanded(!isExpanded);
-  };
-  
-  const changePlaybackRate = () => {
-    // Cycle through playback rates: 1 -> 1.25 -> 1.5 -> 1.75 -> 2 -> 0.75 -> 1
-    const rates = [1, 1.25, 1.5, 1.75, 2, 0.75];
+
+  const handleToggleExpand = useCallback(() => {
+    setIsExpanded(prev => !prev);
+  }, []);
+
+  const handleChangePlaybackRate = useCallback(() => {
+    const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
     const currentIndex = rates.indexOf(playbackRate);
     const nextIndex = (currentIndex + 1) % rates.length;
-    setPlaybackRate(rates[nextIndex]);
-    
+    const newRate = rates[nextIndex];
+    setPlaybackRate(newRate);
     if (audioRef.current) {
-      audioRef.current.playbackRate = rates[nextIndex];
+      audioRef.current.playbackRate = newRate;
     }
-  };
-  
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || !isFinite(seconds)) return '00:00';
-    
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
+  }, [playbackRate]);
+
+  const formatTime = (seconds: number): string => {
+    if (isNaN(seconds) || !isFinite(seconds) || seconds < 0) return '00:00';
+    const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-    
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
-  
-  if (!episode) {
-    return null;
+
+  const hasNextEpisode = currentQueueIndex < episodeQueue.length - 1;
+  const hasPreviousEpisode = currentQueueIndex > 0;
+
+  if (!currentEpisode) {
+    return null; 
   }
 
   return (
     <>
-      {/* Hidden audio element */}
-      <audio ref={audioRef} preload="metadata" />
-      
-      <div className={`fixed transition-all duration-300 ${
-        isExpanded ? 'inset-0 z-50 bg-dark-900/95' : 'bottom-0 left-0 right-0 z-40'
-      }`}>
-        <div className={`mx-auto ${isExpanded ? 'h-full max-w-4xl p-6 flex flex-col' : 'bg-dark-800 shadow-lg'}`}>
-          {/* Main player content */}
-          <div className={`${isExpanded ? 'flex-1 flex flex-col' : 'p-4'}`}>
+      <audio ref={audioRef} />
+      <div className={`fixed bottom-0 left-0 right-0 bg-dark-900 text-white shadow-2xl_top z-50 transition-all duration-300 ease-in-out ${isExpanded ? 'h-full' : 'h-auto'}`}>
+        <div className={`container mx-auto px-4 ${isExpanded ? 'py-8 h-full flex flex-col' : 'py-3'}`}>
+          <div className={`${isExpanded ? 'flex-grow flex flex-col items-center justify-center' : 'flex items-center w-full'}`}>
             {isExpanded ? (
-              <div className="flex flex-col h-full">
-                {/* Ad Unit for non-premium users - only in expanded view */}
-                <AdUnit placement="podcast" className="mb-6" />
-                
-                {/* Expanded player content */}
-                <div className="flex flex-col flex-1 items-center justify-center">
-                  <div className="w-full max-w-md mb-8">
-                    {episode.image_url ? (
-                      <img 
-                        src={episode.image_url} 
-                        alt={episode.title}
-                        className="w-full aspect-square object-cover rounded-lg shadow-xl"
-                      />
-                    ) : (
-                      <div className="w-full aspect-square bg-dark-700 rounded-lg flex items-center justify-center">
-                        <span className="text-gray-400 text-xl">No Image</span>
-                      </div>
-                    )}
+              <div className="w-full max-w-md text-center">
+                {currentEpisode.image_url ? (
+                  <img 
+                    src={currentEpisode.image_url} 
+                    alt={currentEpisode.title} 
+                    className="w-64 h-64 object-cover rounded-lg mx-auto mb-6 shadow-xl"
+                  />
+                ) : (
+                  <div className="w-64 h-64 bg-dark-700 rounded-lg flex items-center justify-center mx-auto mb-6 shadow-xl">
+                    <Music size={80} className="text-gray-500" />
                   </div>
+                )}
+                <h2 className="text-2xl font-bold mb-2 truncate" title={currentEpisode.title}>{currentEpisode.title}</h2>
+                <p className="text-md text-gray-400 mb-6 truncate" title={currentEpisode.podcast_name}>{currentEpisode.podcast_name || 'Unknown Podcast'}</p>
+                
+                <div 
+                  ref={progressBarRef}
+                  className="w-full h-2 bg-dark-600 rounded-full relative cursor-pointer mb-4"
+                  onClick={handleProgressBarSeek}
+                >
+                  <div 
+                    className="absolute top-0 left-0 h-full bg-accent-500 rounded-full"
+                    style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 mb-6">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(duration)}</span>
+                </div>
+
+                <div className="flex items-center justify-center space-x-6 mb-8">
+                  <button
+                    onClick={handlePlayPrevious}
+                    disabled={!hasPreviousEpisode}
+                    className={`p-2 rounded-full transition-colors ${ 
+                      hasPreviousEpisode 
+                        ? 'text-gray-300 hover:text-white hover:bg-dark-700' 
+                        : 'text-gray-600 cursor-not-allowed'
+                    }`}
+                    aria-label="Previous episode"
+                  >
+                    <SkipBack size={24} />
+                  </button>
                   
-                  <div className="w-full max-w-2xl text-center">
-                    <h2 className="text-2xl font-bold text-white mb-2">{episode.title}</h2>
-                    <p className="text-gray-400 mb-6">{episode.podcast_name || 'Unknown Podcast'}</p>
-                    
-                    <div className="mb-8">
-                      <div 
-                        ref={progressBarRef}
-                        className="h-2 bg-dark-600 rounded-full relative cursor-pointer mb-2"
-                        onClick={handleProgressBarClick}
-                      >
-                        <div 
-                          className="absolute top-0 left-0 h-full bg-accent-500 rounded-full"
-                          style={{ width: `${(currentTime / duration) * 100}%` }}
-                        />
-                        {isBuffering && (
-                          <div className="absolute top-0 right-0 left-0 h-full flex justify-center items-center">
-                            <div className="w-1 h-1 bg-white rounded-full animate-ping" />
-                          </div>
-                        )}
+                  <button
+                    onClick={handleTogglePlayPause}
+                    className="p-4 bg-accent-600 hover:bg-accent-700 text-white rounded-full shadow-lg transition-colors transform hover:scale-105"
+                    aria-label={isPlaying ? "Pause" : "Play"}
+                  >
+                    {isBuffering ? (
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        <div className="w-6 h-6 border-4 border-t-transparent border-white rounded-full animate-spin" />
                       </div>
-                      
-                      <div className="flex justify-between text-sm text-gray-400">
-                        <span>{formatTime(currentTime)}</span>
-                        <span>{formatTime(duration)}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-center items-center space-x-6 mb-8">
-                      <button
-                        onClick={onPlayPreviousEpisode}
-                        disabled={!hasPreviousEpisode}
-                        className={`p-2 rounded-full ${
-                          hasPreviousEpisode 
-                            ? 'text-white hover:bg-dark-700 transition-colors' 
-                            : 'text-gray-600 cursor-not-allowed'
-                        }`}
-                      >
-                        <SkipBack size={24} />
-                      </button>
-                      
-                      <button
-                        onClick={togglePlayPause}
-                        className="p-4 bg-accent-600 hover:bg-accent-700 text-white rounded-full transition-colors"
-                      >
-                        {isBuffering ? (
-                          <div className="w-8 h-8 flex items-center justify-center">
-                            <div className="w-5 h-5 border-4 border-t-transparent border-white rounded-full animate-spin" />
-                          </div>
-                        ) : isPlaying ? (
-                          <Pause size={32} />
-                        ) : (
-                          <Play size={32} className="ml-1" />
-                        )}
-                      </button>
-                      
-                      <button
-                        onClick={onPlayNextEpisode}
-                        disabled={!hasNextEpisode}
-                        className={`p-2 rounded-full ${
-                          hasNextEpisode 
-                            ? 'text-white hover:bg-dark-700 transition-colors' 
-                            : 'text-gray-600 cursor-not-allowed'
-                        }`}
-                      >
-                        <SkipForward size={24} />
-                      </button>
-                    </div>
-                    
-                    <div className="flex items-center justify-center space-x-6">
-                      <div className="flex items-center space-x-2">
-                        <button onClick={toggleMute} className="text-gray-300 hover:text-white">
-                          {isMuted ? (
-                            <VolumeX size={20} />
-                          ) : volume < 0.5 ? (
-                            <Volume1 size={20} />
-                          ) : (
-                            <Volume2 size={20} />
-                          )}
-                        </button>
-                        
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.01"
-                          value={isMuted ? 0 : volume}
-                          onChange={handleVolumeChange}
-                          className="w-20 accent-accent-500"
-                        />
-                      </div>
-                      
-                      <button
-                        onClick={changePlaybackRate}
-                        className="px-2 py-1 bg-dark-700 hover:bg-dark-600 text-white text-sm rounded transition-colors"
-                      >
-                        {playbackRate}x
-                      </button>
-                    </div>
+                    ) : isPlaying ? (
+                      <Pause size={32} />
+                    ) : (
+                      <Play size={32} className="ml-1" />
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={handlePlayNext}
+                    disabled={!hasNextEpisode}
+                    className={`p-2 rounded-full transition-colors ${ 
+                      hasNextEpisode 
+                        ? 'text-gray-300 hover:text-white hover:bg-dark-700' 
+                        : 'text-gray-600 cursor-not-allowed'
+                    }`}
+                    aria-label="Next episode"
+                  >
+                    <SkipForward size={24} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-center space-x-4 w-full max-w-xs mx-auto">
+                  <button onClick={handleToggleMute} className="text-gray-400 hover:text-white" aria-label={isMuted ? "Unmute" : "Mute"}>
+                    {isMuted ? <VolumeX size={20} /> : volume > 0.5 ? <Volume2 size={20} /> : volume > 0 ? <Volume1 size={20} /> : <VolumeX size={20} />}
+                  </button>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.01" 
+                    value={isMuted ? 0 : volume}
+                    onChange={handleVolumeSliderChange}
+                    className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-dark-600 accent-accent-500"
+                    aria-label="Volume"
+                  />
+                  <div className="w-16 text-center">
+                    <button 
+                      onClick={handleChangePlaybackRate}
+                      className="px-2 py-1 bg-dark-700 hover:bg-dark-600 text-white text-sm rounded transition-colors"
+                      aria-label={`Playback speed ${playbackRate}x`}
+                    >
+                      {playbackRate}x
+                    </button>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center">
-                <div className="flex-shrink-0 mr-4">
-                  {episode.image_url ? (
+              <>
+                <div className="flex-shrink-0 mr-3">
+                  {currentEpisode.image_url ? (
                     <img 
-                      src={episode.image_url} 
-                      alt={episode.title} 
-                      className="w-12 h-12 object-cover rounded"
+                      src={currentEpisode.image_url} 
+                      alt={currentEpisode.title} 
+                      className="w-10 h-10 object-cover rounded"
                     />
                   ) : (
-                    <div className="w-12 h-12 bg-dark-700 rounded flex items-center justify-center">
-                      <span className="text-gray-500 text-xs">No Img</span>
+                    <div className="w-10 h-10 bg-dark-700 rounded flex items-center justify-center">
+                      <Music size={20} className="text-gray-500" />
                     </div>
                   )}
                 </div>
                 
-                <div className="flex-1 min-w-0 mr-4">
-                  <h3 className="text-white text-sm font-medium truncate">{episode.title}</h3>
-                  <p className="text-gray-400 text-xs truncate">{episode.podcast_name || 'Unknown Podcast'}</p>
+                <div className="flex-1 min-w-0 mr-3">
+                  <h3 className="text-white text-sm font-medium truncate" title={currentEpisode.title}>{currentEpisode.title}</h3>
+                  <p className="text-gray-400 text-xs truncate" title={currentEpisode.podcast_name}>{currentEpisode.podcast_name || 'Unknown Podcast'}</p>
                   
                   <div 
                     ref={progressBarRef}
-                    className="h-1 bg-dark-600 rounded-full relative cursor-pointer mt-2"
-                    onClick={handleProgressBarClick}
+                    className="h-1 bg-dark-700 rounded-full relative cursor-pointer mt-1"
+                    onClick={handleProgressBarSeek}
                   >
                     <div 
                       className="absolute top-0 left-0 h-full bg-accent-500 rounded-full"
-                      style={{ width: `${(currentTime / duration) * 100}%` }}
+                      style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
                     />
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
                   <button
-                    onClick={onPlayPreviousEpisode}
+                    onClick={handlePlayPrevious}
                     disabled={!hasPreviousEpisode}
-                    className={`p-1 rounded-full ${
+                    className={`p-1 rounded-full transition-colors ${ 
                       hasPreviousEpisode 
                         ? 'text-gray-300 hover:text-white' 
                         : 'text-gray-600 cursor-not-allowed'
                     }`}
+                    aria-label="Previous episode"
                   >
-                    <SkipBack size={16} />
+                    <SkipBack size={18} />
                   </button>
                   
                   <button
-                    onClick={togglePlayPause}
+                    onClick={handleTogglePlayPause}
                     className="p-2 bg-accent-600 hover:bg-accent-700 text-white rounded-full transition-colors"
+                    aria-label={isPlaying ? "Pause" : "Play"}
                   >
                     {isBuffering ? (
-                      <div className="w-4 h-4 flex items-center justify-center">
-                        <div className="w-3 h-3 border-2 border-t-transparent border-white rounded-full animate-spin" />
+                      <div className="w-5 h-5 flex items-center justify-center">
+                        <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin" />
                       </div>
                     ) : isPlaying ? (
-                      <Pause size={16} />
+                      <Pause size={18} />
                     ) : (
-                      <Play size={16} className="ml-0.5" />
+                      <Play size={18} className="ml-0.5" />
                     )}
                   </button>
                   
                   <button
-                    onClick={onPlayNextEpisode}
+                    onClick={handlePlayNext}
                     disabled={!hasNextEpisode}
-                    className={`p-1 rounded-full ${
+                    className={`p-1 rounded-full transition-colors ${ 
                       hasNextEpisode 
                         ? 'text-gray-300 hover:text-white' 
                         : 'text-gray-600 cursor-not-allowed'
                     }`}
+                    aria-label="Next episode"
                   >
-                    <SkipForward size={16} />
+                    <SkipForward size={18} />
+                  </button>
+
+                  <button onClick={handleToggleMute} className="p-1 text-gray-400 hover:text-white" aria-label={isMuted ? "Unmute" : "Mute"}>
+                    {isMuted ? <VolumeX size={18} /> : volume > 0 ? <Volume2 size={18} /> : <VolumeX size={18} />}
                   </button>
                 </div>
-              </div>
+              </>
             )}
           </div>
           
-          {/* Expand/collapse button */}
           <button
-            onClick={toggleExpand}
-            className={`absolute ${isExpanded ? 'top-4 right-4' : 'top-2 right-2'} text-gray-400 hover:text-white transition-colors`}
+            onClick={handleToggleExpand}
+            className={`absolute ${isExpanded ? 'top-6 right-6' : 'top-1/2 -translate-y-1/2 right-4'} text-gray-400 hover:text-white transition-colors p-2`}
+            aria-label={isExpanded ? 'Collapse player' : 'Expand player'}
           >
-            {isExpanded ? (
-              <Minimize2 size={isExpanded ? 24 : 16} />
-            ) : (
-              <Maximize2 size={isExpanded ? 24 : 16} />
-            )}
+            {isExpanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
           </button>
         </div>
       </div>

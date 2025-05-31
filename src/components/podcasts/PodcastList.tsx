@@ -60,7 +60,7 @@ const PodcastList: React.FC = () => {
               status
             `)
             .eq('category_id', cat.id)
-            .eq('status', 'approved')
+            .eq('status', 'published')
             .order('created_at', { ascending: false })
             .limit(5);
 
@@ -238,7 +238,7 @@ const PodcastList: React.FC = () => {
                 {podcasts.map(podcast => (
                   <Link
                     key={podcast.id}
-                    to={`/podcast/${podcast.slug || podcast.id}`}
+                    to={`/podcasts/${podcast.slug || podcast.id}`}
                     className="flex-shrink-0 w-72 sm:w-80 group/card"
                   >
                     <div className="bg-dark-800 hover:bg-dark-700 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">

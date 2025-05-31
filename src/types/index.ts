@@ -122,6 +122,7 @@ export interface PodcastFeed {
   last_fetched_at?: string | null; // TIMESTAMPTZ
   created_at: string; // TIMESTAMPTZ
   updated_at: string; // TIMESTAMPTZ
+  status?: 'draft' | 'published' | 'archived'; // Podcast status
   podcast_categories?: PodcastCategory | null; // Joined data from podcast_categories table
 }
 

@@ -105,7 +105,10 @@ const AdminCategoriesPage: React.FC = () => {
     try {
       // TODO: Replace 'placeholder-admin-user-id' with actual logged-in admin user ID if available
       const { data, error: functionError } = await supabase.functions.invoke('generate-ai-article', {
-        body: { categoryId }, 
+        body: { 
+          category_id: categoryId,
+          model: 'gpt-4.1-mini-2025-04-14' // Explicitly set the working model
+        }, 
       });
 
       if (functionError) {

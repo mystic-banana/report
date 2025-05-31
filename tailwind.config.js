@@ -18,27 +18,31 @@ export default {
           900: '#111827',
           950: '#030712',
         },
-        accent: {
-          50: '#fff1f2',
-          100: '#ffe4e6',
-          200: '#fecdd3',
-          300: '#fda4af',
-          400: '#fb7185',
-          500: '#f43f5e',
-          600: '#e11d48',
-          700: '#be123c',
-          800: '#9f1239',
-          900: '#881337',
-          950: '#4c0519',
+        accent: { // Cosmic Deep Purple
+          DEFAULT: '#4A148C',
+          400: '#7E57C2', // Added for text-accent-400
+          500: '#5E1EB5',
+          600: '#4A148C',
+          700: '#3D0F73'
+        },
+        gold: { // Cosmic Accent Gold
+          DEFAULT: '#FFD700'
+          // Add more shades if needed e.g.:
+          // light: '#FFEB99',
+          // dark: '#B8860B',
+        },
+        celestialBlue: { // Cosmic Celestial Blue
+          DEFAULT: '#1A237E'
+          // Add more shades if needed
         },
         magazine: {
           primary: '#1a1a1a',
           secondary: '#2d2d2d',
-          accent: '#e11d48',
+          accent: '#FFD700', // Updated to Cosmic Gold
           text: '#e5e5e5',
           muted: '#737373',
           border: '#404040',
-          highlight: '#525252'
+          highlight: '#FFD700' // Updated to Cosmic Gold
         }
       },
       fontFamily: {

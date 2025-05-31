@@ -31,78 +31,8 @@ interface RssResponse {
   message?: string;
 }
 
-// Generate sample episodes for a podcast when RSS feed fails
-async function generateSampleEpisodes(podcastId: string): Promise<boolean> {
-  try {
-    console.log(`Generating sample episodes for podcast ${podcastId}`);
-    
-    // Get podcast info to use in sample episodes
-    const { data: podcast, error: podcastError } = await supabase
-      .from('podcasts')
-      .select('*')
-      .eq('id', podcastId)
-      .single();
-      
-    if (podcastError) {
-      console.error('Error fetching podcast:', podcastError);
-      return false;
-    }
-    
-    const topics = [
-      'Meditation', 'Consciousness', 'Ancient Wisdom', 'Healing', 
-      'Energy Work', 'Shamanism', 'Spiritual Growth', 'Sacred Geometry',
-      'Astrology', 'Dream Analysis', 'Past Lives', 'Crystal Healing',
-      'Sound Therapy', 'Plant Medicine', 'Quantum Physics', 'Mysticism'
-    ];
-    
-    // Generate 10 sample episodes
-    const episodes = [];
-    for (let i = 1; i <= 10; i++) {
-      const publishDate = new Date();
-      publishDate.setDate(publishDate.getDate() - (i * 3)); // Episodes every 3 days
-      
-      const topic = topics[Math.floor(Math.random() * topics.length)];
-      const duration = `${Math.floor(Math.random() * 60) + 30}:${Math.floor(Math.random() * 60).toString().padStart(2, '0')}`;
-      
-      episodes.push({
-        id: uuidv4(),
-        podcast_id: podcastId,
-        title: `Episode ${i}: Exploring ${topic}`,
-        description: `In this episode of ${podcast.name}, we dive deep into the mysteries of ${topic} and uncover ancient wisdom that can transform your life.`,
-        pub_date: publishDate.toISOString(),
-        audio_url: `https://example.com/podcasts/${podcastId}/episode-${i}.mp3`,
-        duration: duration,
-        guid: `${podcastId}-episode-${i}`,
-        image_url: `https://source.unsplash.com/random/300x300?${topic.toLowerCase().replace(' ', '+')}`,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
-    }
-    
-    // Insert episodes in batches
-    const batchSize = 5;
-    for (let i = 0; i < episodes.length; i += batchSize) {
-      const batch = episodes.slice(i, i + batchSize);
-      
-      const { error: insertError } = await supabase
-        .from('episodes')
-        .insert(batch);
-      
-      if (insertError) {
-        console.error(`Error inserting episodes batch ${Math.floor(i/batchSize) + 1}:`, insertError);
-        return false;
-      }
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error generating sample episodes:', error);
-    return false;
-  }
-}
-
 // Function to fetch episodes for a podcast
-export async function fetchEpisodesForPodcast(podcastId: string, feedUrl: string): Promise<boolean> {
+export async function fetchEpisodesForPodcast(podcastId: string, feedUrl: string): Promise<{ success: boolean; error?: string; message?: string; episodeCount?: number }> {
   try {
     console.log(`Fetching episodes for podcast ${podcastId} from ${feedUrl}`);
     
@@ -132,6 +62,48 @@ export async function fetchEpisodesForPodcast(podcastId: string, feedUrl: string
         throw new Error(`RSS feed error: ${data.message || 'Unknown error'}`);
       }
       
+      // Update podcast metadata from feed info
+      if (data.feed && data.feed.title) {
+        const podcastName = data.feed.title;
+        const podcastDescription = data.feed.description || '';
+        const podcastImageUrl = data.feed.image || '';
+        const podcastAuthor = data.feed.author || '';
+        const podcastLink = data.feed.link || '';
+
+        const generateSlug = (title: string) => {
+          if (!title) return '';
+          return title
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, '-') // Replace spaces with -
+            .replace(/[^à-ü\w-]+/g, '') // Remove non-alphanumeric characters except hyphens and accented chars
+            .replace(/--+/g, '-'); // Replace multiple hyphens with single hyphen
+        };
+        const podcastSlug = generateSlug(podcastName);
+
+        const { error: updatePodcastMetaError } = await supabase
+          .from('podcasts')
+          .update({
+            name: podcastName,
+            description: podcastDescription,
+            image_url: podcastImageUrl,
+            author: podcastAuthor,
+            website_url: podcastLink,
+            slug: podcastSlug,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', podcastId);
+
+        if (updatePodcastMetaError) {
+          console.error('Error updating podcast metadata:', updatePodcastMetaError);
+          // Log error but continue with episode processing for now
+        } else {
+          console.log(`Successfully updated metadata for podcast ${podcastId} with slug ${podcastSlug}`);
+        }
+      } else {
+        console.warn(`Feed data or title missing for podcast ${podcastId}, cannot update metadata or slug.`);
+      }
+
       console.log(`Successfully fetched RSS feed with ${data.items.length} items`);
       
       // Process episodes - limit to 20 to avoid database limits
@@ -150,8 +122,9 @@ export async function fetchEpisodesForPodcast(podcastId: string, feedUrl: string
       })).filter(episode => episode.audio_url);
       
       if (episodes.length === 0) {
-        console.log('No valid episodes found with audio URLs');
-        return generateSampleEpisodes(podcastId);
+        const errorMsg = 'No valid episodes with audio URLs found in the feed.';
+        console.log(errorMsg);
+        return { success: false, error: errorMsg };
       }
       
       console.log(`Inserting ${episodes.length} episodes`);
@@ -174,22 +147,27 @@ export async function fetchEpisodesForPodcast(podcastId: string, feedUrl: string
               .insert(batch);
               
             if (fallbackError) {
-              console.error('Fallback insert also failed:', fallbackError);
-              return generateSampleEpisodes(podcastId);
+              const errorMsg = `Fallback insert also failed: ${(fallbackError as Error).message}`;
+              console.error(errorMsg);
+              return { success: false, error: errorMsg };
             }
           } else {
-            return generateSampleEpisodes(podcastId);
+            const errorMsg = `Error inserting episodes batch: ${(insertError as Error).message}`;
+            console.error(errorMsg);
+            return { success: false, error: errorMsg };
           }
         }
       }
       
-      return true;
+      return { success: true, message: `Successfully inserted ${episodes.length} episodes.`, episodeCount: episodes.length };
     } catch (rssError) {
-      console.error('Error fetching RSS feed:', rssError);
-      return generateSampleEpisodes(podcastId);
+      const errorMsg = `Error fetching or parsing RSS feed: ${(rssError as Error).message}`;
+      console.error(errorMsg);
+      return { success: false, error: errorMsg };
     }
   } catch (error) {
-    console.error('Error in fetchEpisodesForPodcast:', error);
-    return false;
+    const errorMsg = `Unexpected error in fetchEpisodesForPodcast: ${(error as Error).message}`;
+    console.error(errorMsg);
+    return { success: false, error: errorMsg };
   }
 }

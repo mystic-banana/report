@@ -1,0 +1,759 @@
+import React, { useEffect, useState, useRef } from 'react';
+import DOMPurify from 'dompurify';
+import { useParams, Link } from 'react-router-dom';
+import { supabase } from '../../lib/supabaseClient';
+import { fetchEpisodesForPodcast } from '../../utils/fetchEpisodes';
+import { Headphones, RefreshCw, Play, Pause, Calendar, Clock, List, Share2, BookmarkPlus } from 'lucide-react';
+import PageLayout from '../../components/layout/PageLayout';
+import PodcastPlayer from '../../components/podcasts/PodcastPlayer';
+import PodcastPlaylist from '../../components/podcasts/PodcastPlaylist';
+import FavoritesButton from '../../components/podcasts/FavoritesButton';
+import SEO from '../../components/SEO';
+import AdUnit from '../../components/ads/AdUnit';
+import { formatDistanceToNow } from 'date-fns';
+import { useAuthStore } from '../../store/authStore';
+
+// Helper function to check if a string is a UUID
+const isUUID = (str: string) => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+};
+
+const PodcastDetailPage: React.FC = () => {
+  const { slug = '' } = useParams<{ slug: string }>();
+  const { user } = useAuthStore();
+  
+  const [podcast, setPodcast] = useState<any>(null);
+  const [episodes, setEpisodes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentEpisode, setCurrentEpisode] = useState<any>(null);
+  const [refreshingEpisodes, setRefreshingEpisodes] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [recommendedPodcasts, setRecommendedPodcasts] = useState<any[]>([]);
+  const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  // Track if podcast is favorited to update UI when needed
+  const [isFavorited, setIsFavorited] = useState(false);
+  
+  // Refs for handling scroll position
+  const episodesRef = useRef<HTMLDivElement>(null);
+  const descriptionRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    fetchPodcastAndEpisodes();
+    window.scrollTo(0, 0);
+  }, [slug]);
+  
+  // Function to refresh episodes from the RSS feed
+  const refreshEpisodes = async () => {
+    if (!podcast?.feed_url || !podcast?.id || refreshingEpisodes) {
+      return;
+    }
+    
+    setRefreshingEpisodes(true);
+    
+    try {
+      const success = await fetchEpisodesForPodcast(podcast.id, podcast.feed_url);
+      
+      if (success) {
+        // Fetch updated episodes from the database
+        const { data: updatedEpisodes, error: fetchError } = await supabase
+          .from('episodes')
+          .select('*')
+          .eq('podcast_id', podcast.id)
+          .order('pub_date', { ascending: false });
+          
+        if (fetchError) {
+          console.error('Error fetching updated episodes:', fetchError);
+        } else {
+          setEpisodes(updatedEpisodes || []);
+        }
+      }
+    } catch (err) {
+      console.error('Error refreshing episodes:', err);
+    } finally {
+      setRefreshingEpisodes(false);
+    }
+  };
+  
+  // Fetch podcast and episodes data
+  const fetchPodcastAndEpisodes = async () => {
+    console.log('Fetching podcast and episodes for slug:', slug);
+    setLoading(true);
+    setError(null);
+    
+    try {
+      let podcastData;
+      
+      // Check if slug is a UUID
+      if (isUUID(slug)) {
+        const { data, error: podcastError } = await supabase
+          .from('podcasts')
+          .select('*')
+          .eq('id', slug)
+          .eq('status', 'approved')
+          .single();
+          
+        if (podcastError) {
+          throw new Error(`Error fetching podcast: ${podcastError.message}`);
+        }
+        
+        podcastData = data;
+      } else {
+        // Handle slug as a string (name-based slug)
+        // First try exact match on slug field if it exists
+        try {
+          const { data: slugMatch, error: slugError } = await supabase
+            .from('podcasts')
+            .select('*')
+            .eq('slug', slug)
+            .eq('status', 'approved')
+            .maybeSingle(); // Use maybeSingle to avoid errors if no match
+
+          // If we found a match by slug field, use it
+          if (!slugError && slugMatch) {
+            podcastData = slugMatch;
+          } else {
+            // Otherwise, try to match by converting name to slug format
+            const { data: nameMatches, error: nameError } = await supabase
+              .from('podcasts')
+              .select('*')
+              .eq('status', 'approved')
+              .filter('name', 'ilike', `%${slug.replace(/-/g, ' ')}%`)
+              .order('created_at', { ascending: false });
+              
+            if (nameError) {
+              throw new Error(`Error fetching podcast by name: ${nameError.message}`);
+            }
+            
+            if (nameMatches && nameMatches.length > 0) {
+              podcastData = nameMatches[0];
+            } else {
+              throw new Error('Podcast not found.');
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching podcast by slug:', err);
+          throw err;
+        }
+      }
+      
+      if (!podcastData) {
+        throw new Error('Podcast not found');
+      }
+      
+      // Set podcast data with category name if available
+      if (podcastData.category_id) {
+        // Fetch category name
+        const { data: categoryData, error: categoryError } = await supabase
+          .from('podcast_categories')
+          .select('name')
+          .eq('id', podcastData.category_id)
+          .single();
+          
+        if (!categoryError && categoryData) {
+          setPodcast({
+            ...podcastData,
+            categoryName: categoryData.name
+          });
+        } else {
+          setPodcast(podcastData);
+        }
+      } else {
+        setPodcast(podcastData);
+      }
+      
+      // Fetch episodes for this podcast
+      const { data: episodesData, error: episodesError } = await supabase
+        .from('episodes')
+        .select('*')
+        .eq('podcast_id', podcastData.id)
+        .order('pub_date', { ascending: false });
+      
+      if (episodesError) {
+        console.error('Error fetching episodes:', episodesError);
+        // We don't throw here because we still want to show the podcast even if episodes fail to load
+      } else {
+        setEpisodes(episodesData || []);
+      }
+      
+      // Fetch recommended podcasts in the same category
+      if (podcastData.category_id) {
+        const { data: recommendations, error: recError } = await supabase
+          .from('podcasts')
+          .select('*')
+          .eq('category_id', podcastData.category_id)
+          .eq('status', 'approved')
+          .neq('id', podcastData.id) // Don't include the current podcast
+          .limit(4);
+          
+        if (!recError && recommendations && recommendations.length > 0) {
+          setRecommendedPodcasts(recommendations);
+        }
+      }
+      
+      // If we don't have enough recommendations, get some random ones
+      if (recommendedPodcasts.length < 4) {
+        const { data: randomRecs, error: randomError } = await supabase
+          .from('podcasts')
+          .select('*')
+          .eq('status', 'approved')
+          .neq('id', podcastData.id)
+          .limit(4 - recommendedPodcasts.length);
+          
+        if (!randomError && randomRecs && randomRecs.length > 0) {
+          setRecommendedPodcasts(prev => {
+            // Filter out any that might already be in the recommendations
+            const newRecs = randomRecs.filter(rec => 
+              !prev.some(p => p.id === rec.id)
+            );
+            return [...prev, ...newRecs];
+          });
+        }
+      }
+      
+    } catch (err: any) {
+      console.error('Error fetching podcast:', err);
+      setError(err.message || 'Failed to load podcast');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Handle playing an episode
+  const handlePlayEpisode = (episode: any) => {
+    if (currentEpisode?.id === episode.id) {
+      // Toggle play/pause if it's the current episode
+      setIsPlaying(!isPlaying);
+    } else {
+      // Start playing the new episode
+      setCurrentEpisode(episode);
+      setIsPlaying(true);
+    }
+  };
+  
+  // Play next or previous episode
+  const handlePlayNextEpisode = () => {
+    const currentIndex = episodes.findIndex(e => e.id === currentEpisode?.id);
+    if (currentIndex < episodes.length - 1) {
+      handlePlayEpisode(episodes[currentIndex + 1]);
+    }
+  };
+  
+  const handlePlayPreviousEpisode = () => {
+    const currentIndex = episodes.findIndex(e => e.id === currentEpisode?.id);
+    if (currentIndex > 0) {
+      handlePlayEpisode(episodes[currentIndex - 1]);
+    }
+  };
+  
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return formatDistanceToNow(date, { addSuffix: true });
+    } catch (err) {
+      return 'Unknown date';
+    }
+  };
+  
+  // Format duration for display
+  const formatDuration = (duration: string) => {
+    if (!duration) return 'Unknown length';
+    
+    // Handle seconds format (e.g., "3600")
+    if (/^\d+$/.test(duration)) {
+      const seconds = parseInt(duration, 10);
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+      } else {
+        return `${minutes}m`;
+      }
+    }
+    
+    // Handle "HH:MM:SS" format
+    if (/^\d+:\d+:\d+$/.test(duration)) {
+      const [hours, minutes] = duration.split(':');
+      if (parseInt(hours, 10) > 0) {
+        return `${parseInt(hours, 10)}h ${parseInt(minutes, 10)}m`;
+      } else {
+        return `${parseInt(minutes, 10)}m`;
+      }
+    }
+    
+    // Handle "MM:SS" format
+    if (/^\d+:\d+$/.test(duration)) {
+      const [minutes, _] = duration.split(':');
+      return `${parseInt(minutes, 10)}m`;
+    }
+    
+    return duration;
+  };
+  
+  if (loading) {
+    return (
+      <PageLayout>
+        <div className="min-h-screen bg-dark-900 text-white p-4">
+          <div className="container mx-auto max-w-6xl py-12">
+            <div className="flex flex-col md:flex-row gap-6 animate-pulse">
+              <div className="w-40 h-40 md:w-56 md:h-56 bg-dark-800 rounded-lg mx-auto md:mx-0"></div>
+              <div className="flex-1">
+                <div className="h-8 bg-dark-800 rounded w-3/4 mb-4"></div>
+                <div className="h-4 bg-dark-800 rounded w-1/2 mb-4"></div>
+                <div className="h-4 bg-dark-800 rounded w-full mb-2"></div>
+                <div className="h-4 bg-dark-800 rounded w-full mb-2"></div>
+                <div className="h-4 bg-dark-800 rounded w-3/4 mb-2"></div>
+              </div>
+            </div>
+            
+            <div className="mt-12">
+              <div className="h-6 bg-dark-800 rounded w-1/4 mb-6"></div>
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="bg-dark-800 rounded-lg p-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-16 h-16 bg-dark-700 rounded"></div>
+                      <div className="flex-1">
+                        <div className="h-4 bg-dark-700 rounded w-3/4 mb-3"></div>
+                        <div className="h-3 bg-dark-700 rounded w-1/2 mb-3"></div>
+                        <div className="h-3 bg-dark-700 rounded w-full mb-3"></div>
+                        <div className="h-3 bg-dark-700 rounded w-20"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  return (
+    <PageLayout>
+      {/* Debugging overlay - only in development */}
+      <div className="bg-yellow-800 text-white p-2 text-xs fixed top-0 left-0 z-50">
+        Debug - Loading: {loading ? 'true' : 'false'} | 
+        Error: {error ? 'true' : 'false'} | 
+        Podcast: {podcast ? 'true' : 'false'} |
+        Slug: {slug}
+      </div>
+      
+      {loading ? (
+        <div className="min-h-screen bg-gradient-to-b from-dark-900 to-dark-800 flex items-center justify-center text-white">
+          <div className="text-center">
+            <div className="animate-spin w-16 h-16 border-4 border-accent-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <h2 className="text-2xl font-bold mb-2">Loading Podcast</h2>
+            <p className="text-gray-400">Hang tight while we fetch the episodes...</p>
+          </div>
+        </div>
+      ) : error ? (
+        <div className="min-h-screen bg-gradient-to-b from-dark-900 to-dark-800 flex items-center justify-center text-white">
+          <div className="text-center max-w-md mx-auto p-6 bg-dark-800 rounded-lg shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h2 className="text-2xl font-bold mb-2">Podcast Not Found</h2>
+            <p className="text-gray-400 mb-6">{error}</p>
+            <Link to="/podcasts" className="inline-flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-700 rounded-lg text-white font-medium transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Browse All Podcasts
+            </Link>
+          </div>
+        </div>
+      ) : !podcast ? (
+        <div className="min-h-screen bg-gradient-to-b from-dark-900 to-dark-800 flex items-center justify-center text-white">
+          <div className="text-center max-w-md mx-auto p-6 bg-dark-800 rounded-lg shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+            <h2 className="text-2xl font-bold mb-2">Podcast Not Found</h2>
+            <p className="text-gray-400 mb-6">The podcast you're looking for doesn't exist or has not been approved yet.</p>
+            <Link to="/podcasts" className="inline-flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-700 rounded-lg text-white font-medium transition-colors">
+              Browse all podcasts
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <SEO 
+            title={`${podcast?.name || 'Podcast'} | Mystic Banana`}
+            description={podcast?.description || 'Listen to this fascinating podcast on Mystic Banana.'}
+            ogType="article"
+            ogImage={podcast?.image_url || '/images/podcast-default.jpg'}
+          />
+
+          {/* Hero Section with Gradient Background - Mobile First */}
+          <div className="w-full bg-gradient-to-r from-dark-900 to-dark-800 py-8 px-4 md:py-12 md:px-6">
+            <div className="container mx-auto max-w-6xl">
+              <div className="flex flex-col gap-6 sm:gap-8 md:flex-row md:gap-10">
+                {/* Podcast Image - Optimized for Mobile */}
+                <div className="w-40 h-40 mx-auto sm:w-48 sm:h-48 md:w-56 md:h-56 md:mx-0 lg:w-64 lg:h-64 flex-shrink-0">
+                  <div className="flex flex-col md:flex-row md:items-start gap-6 mb-10">
+                    <div className="md:w-56 lg:w-64 xl:w-72 flex-shrink-0">
+                      <div className="sticky top-4">
+                        {podcast.image_url ? (
+                          <img
+                            src={podcast.image_url}
+                            alt={podcast.name}
+                            className="w-full aspect-square object-cover rounded-lg shadow-lg"
+                          />
+                        ) : (
+                          <div className="w-full aspect-square bg-dark-700 rounded-lg flex items-center justify-center">
+                            <Headphones size={64} className="text-accent-500" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="mt-4 grid grid-cols-4 gap-2">
+                      <FavoritesButton
+                        podcastId={podcast.id}
+                        onFavoriteChange={setIsFavorited}
+                        className="flex flex-col items-center justify-center p-2 rounded-lg bg-dark-800 hover:bg-dark-700 transition-colors"
+                      />
+
+                      <button 
+                        onClick={() => {
+                          if (!user) {
+                            // Show login prompt if user is not logged in
+                            if (confirm('Please log in to add to playlist. Would you like to log in now?')) {
+                              // Save current page to session storage so we can redirect back after login
+                              sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+                              window.location.href = '/login';
+                            }
+                          } else {
+                            setShowPlaylistModal(true);
+                          }
+                        }}
+                        className="flex flex-col items-center justify-center p-2 rounded-lg bg-dark-800 hover:bg-dark-700 transition-colors"
+                        aria-label="Add to playlist"
+                        title="Add to playlist"
+                      >
+                        <BookmarkPlus className="text-gray-400 hover:text-accent-400" size={24} />
+                      </button>
+
+                      <button
+                        className="flex flex-col items-center justify-center p-2 rounded-lg bg-dark-800 hover:bg-dark-700 transition-colors"
+                        aria-label="Share podcast"
+                        title="Share podcast"
+                        onClick={() => {
+                          if (navigator.share) {
+                            navigator.share({
+                              title: podcast.name,
+                              text: `Check out this podcast: ${podcast.name}`,
+                              url: window.location.href,
+                            })
+                              .catch((err) => console.error('Error sharing:', err));
+                          } else {
+                            navigator.clipboard.writeText(window.location.href)
+                              .then(() => alert('Link copied to clipboard!'))
+                              .catch((err) => console.error('Error copying link:', err));
+                          }
+                        }}
+                      >
+                        <Share2 className="text-gray-400 hover:text-accent-400" size={24} />
+                      </button>
+
+                      <button
+                        onClick={() => episodesRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                        className="flex flex-col items-center justify-center p-2 rounded-lg bg-dark-800 hover:bg-dark-700 transition-colors"
+                        aria-label="View episodes"
+                        title="View episodes"
+                      >
+                        <List className="text-gray-400 hover:text-accent-400" size={24} />
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={refreshEpisodes}
+                      disabled={refreshingEpisodes || !podcast.feed_url}
+                      className="w-full mt-4 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-accent-600 hover:bg-accent-700 text-white font-medium disabled:opacity-50 transition-colors"
+                    >
+                      <RefreshCw size={16} className={refreshingEpisodes ? 'animate-spin' : ''} />
+                      <span>{refreshingEpisodes ? 'Refreshing...' : 'Refresh Episodes'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1">
+                  <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 flex items-center gap-2">
+                    {podcast.name}
+                    {isFavorited && (
+                      <span className="text-red-500 bg-red-500/10 text-xs font-normal px-2 py-1 rounded-full">
+                        Favorited
+                      </span>
+                    )}
+                  </h1>
+
+                  {podcast.author && (
+                    <p className="text-lg text-gray-300 mb-4">{podcast.author}</p>
+                  )}
+
+                  <div className="flex flex-wrap gap-3 mb-6">
+                    {/* Category Tag */}
+                    {podcast.category && (
+                      <Link
+                        to={`/podcasts/category/${podcast.category_id || 'all'}`}
+                        className="inline-flex items-center px-3 py-1 rounded-full bg-accent-500/10 text-accent-400 text-sm font-medium"
+                      >
+                        {podcast.category}
+                      </Link>
+                    )}
+
+                    {/* Last updated */}
+                    {podcast.last_fetched_at && (
+                      <div className="inline-flex items-center px-3 py-1 rounded-full bg-dark-700 text-gray-400 text-sm">
+                        <Clock size={14} className="mr-1" />
+                        Updated {formatDistanceToNow(new Date(podcast.last_fetched_at))} ago
+                      </div>
+                    )}
+
+                    {/* Episode count */}
+                    <div className="inline-flex items-center px-3 py-1 rounded-full bg-dark-700 text-gray-400 text-sm">
+                      <Headphones size={14} className="mr-1" />
+                      {episodes.length} {episodes.length === 1 ? 'episode' : 'episodes'}
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div ref={descriptionRef} className="mb-8">
+                    <h2 className="text-xl font-bold mb-3 border-b border-dark-700 pb-2">About This Podcast</h2>
+                    {podcast.description ? (
+                      <div
+                        className="prose prose-sm prose-invert max-w-none"
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(podcast.description) }}
+                      />
+                    ) : (
+                      <p className="text-gray-400">No description available for this podcast.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Container */}
+      <div className="container mx-auto max-w-6xl px-4 py-8 md:px-6 md:py-10">
+        {/* Ad Unit */}
+        <div className="mb-8">
+          <AdUnit placement="podcast" className="mx-auto" />
+        </div>
+
+        {/* Episodes Section */}
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold mb-6 border-b border-dark-700 pb-3">Episodes</h2>
+
+          {episodes.length === 0 ? (
+            <div className="text-center py-12 bg-dark-800 rounded-lg">
+              <div className="flex flex-col items-center justify-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-16 w-16 text-gray-500 mb-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                  />
+                </svg>
+                <h3 className="text-xl font-semibold text-white mb-2">Loading Episodes</h3>
+                <p className="text-gray-400 mb-6 max-w-md">We're syncing episodes for this podcast. This may take a moment.</p>
+                {podcast?.feed_url && (
+                  <button 
+                    onClick={refreshEpisodes}
+                    disabled={refreshingEpisodes || loading}
+                    className="flex items-center gap-2 px-6 py-3 bg-accent-500 hover:bg-accent-600 disabled:bg-accent-500/50 text-white rounded-md transition-colors"
+                  >
+                    {refreshingEpisodes ? (
+                      <>
+                        <RefreshCw size={18} className="animate-spin" />
+                        <span>Syncing Episodes...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={18} />
+                        <span>Sync Episodes Now</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {episodes.map((episode) => (
+                <div key={episode.id} className="bg-dark-800 rounded-lg p-4 hover:bg-dark-700 transition-colors">
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    {/* Episode image - shown on all devices */}
+                    <div className="flex-shrink-0">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded overflow-hidden bg-dark-700">
+                        {episode.image_url ? (
+                          <img src={episode.image_url} alt={episode.title} className="w-full h-full object-cover" loading="lazy" />
+                        ) : podcast.image_url ? (
+                          <img src={podcast.image_url} alt={podcast.name} className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Headphones size={24} className="text-accent-500" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Episode details */}
+                    <div className="flex-grow min-w-0"> {/* min-w-0 prevents text overflow */}
+                      <h3 className="text-base sm:text-lg font-semibold mb-1 truncate">{episode.title}</h3>
+                      
+                      <div className="flex flex-wrap items-center text-xs text-gray-400 mb-2 gap-2 sm:gap-3">
+                        {episode.pub_date && (
+                          <div className="flex items-center">
+                            <Calendar size={12} className="mr-1" />
+                            <span>{formatDate(episode.pub_date)}</span>
+                          </div>
+                        )}
+                        {episode.duration && (
+                          <div className="flex items-center">
+                            <Clock size={12} className="mr-1" />
+                            <span>{formatDuration(episode.duration)}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {episode.description && (
+                        <p className="text-xs sm:text-sm text-gray-300 line-clamp-2 mb-3">{episode.description}</p>
+                      )}
+                      
+                      {/* Play button */}
+                      <button
+                        onClick={() => handlePlayEpisode(episode)}
+                        className="inline-flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-accent-400 hover:text-accent-500"
+                      >
+                        {currentEpisode?.id === episode.id && isPlaying ? (
+                          <>
+                            <Pause size={14} className="flex-shrink-0" />
+                            <span>Pause Episode</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play size={14} className="flex-shrink-0" />
+                            <span>Play Episode</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* Recommended Podcasts Section */}
+        {recommendedPodcasts.length > 0 && (
+          <div className="mt-10 sm:mt-16">
+            <h2 className="text-2xl font-bold mb-6 border-b border-dark-700 pb-3">You Might Also Like</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {recommendedPodcasts.map(recommendedPodcast => (
+                <Link 
+                  key={recommendedPodcast.id} 
+                  to={`/podcasts/${recommendedPodcast.slug || recommendedPodcast.id}`}
+                  className="block group"
+                >
+                  <div className="bg-dark-800 rounded-lg overflow-hidden hover:bg-dark-700 transition-colors">
+                    <div className="aspect-square relative">
+                      {recommendedPodcast.image_url ? (
+                        <img 
+                          src={recommendedPodcast.image_url} 
+                          alt={recommendedPodcast.name} 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-dark-700">
+                          <Headphones size={32} className="text-accent-500" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black bg-opacity-40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <div className="bg-accent-500 rounded-full p-3">
+                          <Play size={24} className="text-white" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-semibold text-white line-clamp-1 group-hover:text-accent-400 transition-colors">
+                        {recommendedPodcast.name}
+                      </h3>
+                      <p className="text-gray-400 text-sm mt-1 line-clamp-1">
+                        {recommendedPodcast.author || 'Unknown Author'}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Fixed podcast player at bottom */}
+      {currentEpisode && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 shadow-lg">
+          <PodcastPlayer 
+            episode={{
+              ...currentEpisode,
+              podcast_name: podcast.name,
+              published_at: currentEpisode.pub_date
+            }}
+            onPlayNextEpisode={handlePlayNextEpisode}
+            onPlayPreviousEpisode={handlePlayPreviousEpisode}
+            hasNextEpisode={episodes.findIndex(e => e.id === currentEpisode.id) < episodes.length - 1}
+            hasPreviousEpisode={episodes.findIndex(e => e.id === currentEpisode.id) > 0}
+            onPlayerStateChange={setIsPlaying}
+          />
+        </div>
+      )}
+      
+      {/* Playlist Modal */}
+      {showPlaylistModal && podcast && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-lg shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-4 border-b border-dark-700 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-white">Add to Playlist</h3>
+              <button 
+                onClick={() => setShowPlaylistModal(false)}
+                className="text-gray-400 hover:text-white"
+                aria-label="Close"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div className="p-4 max-h-96 overflow-y-auto">
+              <PodcastPlaylist 
+                currentPodcast={{
+                  id: podcast.id,
+                  name: podcast.name
+                }}
+                currentEpisode={currentEpisode}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </PageLayout>
+  );
+};
+
+export default PodcastDetailPage;

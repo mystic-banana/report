@@ -46,12 +46,12 @@ const rssCache: Record<string, {data: ParsedRSSFeed, timestamp: number}> = {};
 const CACHE_EXPIRY = 10 * 60 * 1000; // 10 minutes in milliseconds
 
 export const parseRssFeed = async (feedUrl: string): Promise<ParsedRSSFeed> => {
-  // Check cache first
+  // Check cache first (CACHE TEMPORARILY DISABLED FOR DEBUGGING)
   const now = Date.now();
-  if (rssCache[feedUrl] && (now - rssCache[feedUrl].timestamp < CACHE_EXPIRY)) {
-    console.log(`[rssFeedParser] Using cached data for ${feedUrl}`);
-    return rssCache[feedUrl].data;
-  }
+  // if (rssCache[feedUrl] && (now - rssCache[feedUrl].timestamp < CACHE_EXPIRY)) {
+  //   console.log(`[rssFeedParser] Using cached data for ${feedUrl}`);
+  //   return rssCache[feedUrl].data;
+  // }
   
   const parser = new Parser({
     customFields: {
@@ -115,12 +115,12 @@ export const parseRssFeed = async (feedUrl: string): Promise<ParsedRSSFeed> => {
 
     console.log(`[rssFeedParser] Extracted ${episodes.length} episodes from ${feed.title}`);
     
-    // Store in cache
+    // Store in cache (CACHE TEMPORARILY DISABLED FOR DEBUGGING)
     const result = { feedDetails, episodes };
-    rssCache[feedUrl] = {
-      data: result,
-      timestamp: now
-    };
+    // rssCache[feedUrl] = {
+    //   data: result,
+    //   timestamp: now
+    // };
     
     return result;
 

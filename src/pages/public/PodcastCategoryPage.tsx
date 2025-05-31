@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { PodcastFeed, PodcastCategory } from '../../types';
 import PageLayout from '../../components/layout/PageLayout';
@@ -11,6 +11,7 @@ interface PodcastCategoryPageProps {}
 
 const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
   const { slug } = useParams<{ slug: string }>();
+  const { pathname } = useLocation();
   const [category, setCategory] = useState<PodcastCategory | null>(null);
   const [podcasts, setPodcasts] = useState<PodcastFeed[]>([]);
   const [allCategories, setAllCategories] = useState<PodcastCategory[]>([]);
@@ -24,6 +25,11 @@ const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
     }
   }, [slug]);
 
+  // Helper to check if a string is a valid UUID
+  const isUUID = (str: string) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  };
 
   const fetchAllCategories = async () => {
     const { data: cats } = await supabase
@@ -39,12 +45,30 @@ const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch category details by slug
-      const { data: categoryData, error: categoryError } = await supabase
-        .from('podcast_categories')
-        .select('id, name, slug, description, created_at, updated_at')
-        .eq('slug', slug)
-        .single();
+      let categoryData;
+      let categoryError;
+
+      // If slug is a UUID, search by ID instead of slug
+      if (isUUID(slug)) {
+        const result = await supabase
+          .from('podcast_categories')
+          .select('id, name, slug, description, created_at, updated_at')
+          .eq('id', slug)
+          .single();
+        
+        categoryData = result.data;
+        categoryError = result.error;
+      } else {
+        // Otherwise search by slug as normal
+        const result = await supabase
+          .from('podcast_categories')
+          .select('id, name, slug, description, created_at, updated_at')
+          .eq('slug', slug)
+          .single();
+        
+        categoryData = result.data;
+        categoryError = result.error;
+      }
       
       if (categoryError) {
         // Try to use fallback categories if we can't find the real one
@@ -59,11 +83,15 @@ const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
         if (slug && fallbackCategories[slug]) {
           setCategory(fallbackCategories[slug]);
         } else {
+          // Create a friendly category name for UUIDs or unknown slugs
+          const displayName = isUUID(slug) ? 'Spiritual' : slug.replace(/-/g, ' ');
+          const friendlySlug = isUUID(slug) ? 'spiritual-podcasts' : slug;
+          
           setCategory({
-            id: slug || '',
-            name: slug ? slug.replace(/-/g, ' ') : '',
-            slug: slug || '',
-            description: `Explore our collection of ${slug ? slug.replace(/-/g, ' ') : ''} podcasts for spiritual growth and enlightenment.`,
+            id: slug,
+            name: displayName,
+            slug: friendlySlug,
+            description: `Explore our collection of ${displayName} podcasts for spiritual growth and enlightenment.`,
             created_at: '',
             updated_at: ''
           });
@@ -73,19 +101,40 @@ const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
       }
       
       // Fetch podcasts in this category
-      const { data: podcastsData, error: podcastsError } = await supabase
-        .from('podcasts')
-        .select('id, name, slug, description, image_url, created_at, updated_at, author, category_id, feed_url')
-        .eq('category_id', categoryData?.id)
-        .in('status', ['approved', 'published'])
-        .order('created_at', { ascending: false });
+      let podcastsData: any[] = [];
+      let podcastsError = null;
+      
+      if (categoryData?.id) {
+        // If we have a valid category, fetch podcasts by category ID
+        const result = await supabase
+          .from('podcasts')
+          .select('id, name, slug, description, image_url, created_at, updated_at, author, category_id, feed_url')
+          .eq('category_id', categoryData.id)
+          .in('status', ['approved', 'published'])
+          .order('created_at', { ascending: false });
+        
+        podcastsData = result.data || [];
+        podcastsError = result.error;
+      } else if (isUUID(slug)) {
+        // If the slug is a UUID but we couldn't find it as a category ID,
+        // try using it directly as a category_id for podcasts
+        const result = await supabase
+          .from('podcasts')
+          .select('id, name, slug, description, image_url, created_at, updated_at, author, category_id, feed_url')
+          .eq('category_id', slug)
+          .in('status', ['approved', 'published'])
+          .order('created_at', { ascending: false });
+        
+        podcastsData = result.data || [];
+        podcastsError = result.error;
+      }
       
       if (podcastsError) throw podcastsError;
       
-      setPodcasts((podcastsData || []).map(podcast => ({
-      ...podcast,
-      category: categoryData?.name || (category ? category.name : ''),
-    })));
+      setPodcasts(podcastsData.map(podcast => ({
+        ...podcast,
+        category: categoryData?.name || (category ? category.name : ''),
+      })));
 
     } catch (err: any) {
       console.error('Error fetching category and podcasts:', err);
@@ -104,7 +153,7 @@ const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
       "@type": "CollectionPage",
       "name": `${category.name} Podcasts | Mystic Banana`,
       "description": category.description,
-      "url": `https://mysticbanana.com/podcasts/category/${categoryId}`,
+      "url": `https://mysticbanana.com${pathname}`,
       "mainEntity": {
         "@type": "ItemList",
         "itemListElement": podcasts.map((podcast, index) => ({
@@ -113,7 +162,7 @@ const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
           "item": {
             "@type": "PodcastSeries",
             "name": podcast.name,
-            "url": `https://mysticbanana.com/podcasts/${podcast.id}`,
+            "url": `https://mysticbanana.com/podcasts/${podcast.slug || podcast.id}`,
             "image": podcast.image_url,
             "description": podcast.description,
             "author": {
@@ -133,7 +182,7 @@ const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
         <SEO
           title={`${category.name} Podcasts | Mystic Banana`}
           description={category.description || `Explore our collection of ${category.name} podcasts for spiritual growth and enlightenment.`}
-          canonicalUrl={`/podcasts/category/${categoryId}`}
+          canonicalUrl={`/podcasts/category/${category.slug}`}
           ogType="website"
           ogImage={podcasts[0]?.image_url || '/images/podcast-category-default.jpg'}
           ogImageAlt={`${category.name} Podcasts`}
@@ -147,61 +196,86 @@ const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
         <div className="bg-gradient-to-r from-accent-800 to-accent-600 py-16 px-6">
           <div className="container mx-auto max-w-6xl">
             <div className="flex items-center mb-8">
-              <Link to="/podcasts" className="text-white hover:text-accent-300 transition-colors flex items-center">
-                <ArrowLeft className="mr-2" size={24} />
-                <span>Back to podcasts</span>
+              <Link to="/podcasts" className="flex items-center text-white hover:text-gray-200 transition-colors">
+                <ArrowLeft size={20} className="mr-2" />
+                <span className="font-medium">Back to podcasts</span>
               </Link>
             </div>
             
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">{category?.name || 'Category'} Podcasts</h1>
-            <p className="text-lg opacity-90 max-w-2xl">
-              {category?.description || 'Explore our collection of podcasts in this category.'}
-            </p>
+            {loading ? (
+              <div className="animate-pulse">
+                <div className="h-12 w-3/4 bg-accent-700 rounded mb-4"></div>
+                <div className="h-6 w-1/2 bg-accent-700 rounded"></div>
+              </div>
+            ) : error ? (
+              <div className="text-white">
+                <h1 className="text-4xl font-bold mb-2">Error</h1>
+                <p className="text-xl text-gray-200">{error}</p>
+              </div>
+            ) : category ? (
+              <>
+                <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 capitalize">{category.name} Podcasts</h1>
+                <p className="text-xl text-gray-200 max-w-3xl">{category.description}</p>
+              </>
+            ) : (
+              <div className="text-white">
+                <h1 className="text-4xl font-bold mb-2">Category Not Found</h1>
+                <p className="text-xl text-gray-200">Sorry, the requested category could not be found.</p>
+              </div>
+            )}
           </div>
         </div>
         
-        {/* Main Content */}
-        <div className="container mx-auto max-w-6xl px-6 pt-12">
+        <div className="container mx-auto max-w-6xl px-6 py-12">
           {/* Ad Unit */}
-          <div className="mb-12">
-            <AdUnit placement="podcast" className="w-full" />
+          <div className="mb-8">
+            <AdUnit placement="podcast" className="mx-auto" />
           </div>
           
           {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="w-12 h-12 border-4 border-t-accent-500 border-r-accent-500 border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="bg-dark-800 rounded-lg overflow-hidden">
+                    <div className="aspect-square bg-dark-700"></div>
+                    <div className="p-3">
+                      <div className="h-4 bg-dark-700 rounded mb-2"></div>
+                      <div className="h-3 bg-dark-700 rounded w-3/4"></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : error ? (
             <div className="text-center py-12">
-              <h2 className="text-2xl font-bold text-white mb-4">Error</h2>
-              <p className="text-gray-400">{error}</p>
+              <h2 className="text-xl font-medium text-white mb-4">Failed to Load</h2>
+              <p className="text-gray-400 mb-6">There was an error loading podcasts. Please try again later.</p>
+              <button 
+                onClick={() => fetchCategoryAndPodcasts()}
+                className="px-6 py-3 bg-accent-600 hover:bg-accent-700 rounded-md text-white font-medium transition-colors"
+              >
+                Retry
+              </button>
             </div>
-          ) : (
+          ) : category ? (
             <>
-              <header className="mb-12 text-center">
-                <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 capitalize">
-                  {category?.name} Podcasts
-                </h1>
-                <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-                  {category?.description}
-                </p>
-                
-                {/* Breadcrumbs for SEO */}
-                <nav className="flex justify-center text-sm text-gray-400 mt-6" aria-label="Breadcrumb">
-                  <ol className="inline-flex items-center space-x-1 md:space-x-3">
+              {/* Breadcrumbs */}
+              <header className="mb-8">
+                <nav className="text-gray-400 text-sm mb-4" aria-label="Breadcrumb">
+                  <ol className="inline-flex items-center space-x-1">
                     <li className="inline-flex items-center">
-                      <Link to="/" className="hover:text-accent-400">Home</Link>
+                      <a href="/" className="hover:text-accent-400 transition-colors">Home</a>
                     </li>
                     <li>
                       <div className="flex items-center">
                         <span className="mx-2">/</span>
-                        <Link to="/podcasts" className="hover:text-accent-400">Podcasts</Link>
+                        <a href="/podcasts" className="hover:text-accent-400 transition-colors">Podcasts</a>
                       </div>
                     </li>
                     <li>
                       <div className="flex items-center">
                         <span className="mx-2">/</span>
-                        <span className="text-accent-400 capitalize">{category?.name}</span>
+                        <span className="text-accent-400 capitalize">{category.name}</span>
                       </div>
                     </li>
                   </ol>
@@ -212,16 +286,20 @@ const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
                 <div className="text-center py-12">
                   <h2 className="text-xl font-medium text-white mb-4">No Podcasts Found</h2>
                   <p className="text-gray-400 mb-6">There are no podcasts in this category yet.</p>
-                  <a href="/podcasts" className="px-6 py-3 bg-accent-600 hover:bg-accent-700 rounded-md text-white font-medium transition-colors" title="Browse All Podcasts">
+                  <Link 
+                    to="/podcasts" 
+                    className="px-6 py-3 bg-accent-600 hover:bg-accent-700 rounded-md text-white font-medium transition-colors inline-block"
+                    title="Browse All Podcasts"
+                  >
                     Browse All Podcasts
-                  </a>
+                  </Link>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
                   {podcasts.map(podcast => (
-                    <a
+                    <Link
                       key={podcast.id}
-                      href={`/podcasts/${podcast.slug || podcast.id}`}
+                      to={`/podcasts/${podcast.slug || podcast.id}`}
                       className="group"
                       title={podcast.name}
                     >
@@ -254,7 +332,7 @@ const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
                           </p>
                         </div>
                       </div>
-                    </a>
+                    </Link>
                   ))}
                 </div>
               )}
@@ -264,19 +342,19 @@ const PodcastCategoryPage: React.FC<PodcastCategoryPageProps> = () => {
                 <h2 className="text-2xl font-bold text-white mb-6">Explore Other Categories</h2>
                 <div className="flex flex-wrap gap-4">
                   {allCategories && allCategories.filter(cat => cat.slug !== slug).map(cat => (
-                    <a
+                    <Link
                       key={cat.id}
-                      href={`/podcasts/category/${cat.slug}`}
+                      to={`/podcasts/category/${cat.slug}`}
                       className={`px-4 py-2 rounded-full text-sm font-medium bg-dark-800 text-gray-300 hover:bg-dark-700`}
                       title={`View ${cat.name} Podcasts`}
                     >
                       {cat.name}
-                    </a>
+                    </Link>
                   ))}
                 </div>
               </div>
             </>
-          )}
+          ) : null}
         </div>
       </div>
     </PageLayout>

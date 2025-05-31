@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, lazy } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/auth/LoginPage';
@@ -58,8 +58,8 @@ const App: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/podcasts" element={<PodcastPage />} />
-      <Route path="/podcast/:slug" element={<PodcastDetailPage />} />
       <Route path="/podcasts/category/:slug" element={<PodcastCategoryPage />} />
+      <Route path="/podcasts/:slug" element={<PodcastDetailPage />} />
       <Route path="/plans" element={<PlansPage />} />
       <Route path="/magazine" element={<Navigate to="/magazine/page/1" replace />} />
       <Route path="/magazine/page/:page" element={<Suspense fallback={<div className="p-20 text-center">Loading...</div>}><MagazinePage /></Suspense>} />

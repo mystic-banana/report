@@ -15,6 +15,8 @@ const PodcastPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>(categoryId || 'all');
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
 
   // Use memoized category lookup for better performance
   const categoryMap = useMemo(() => {
@@ -83,12 +85,42 @@ const PodcastPage: React.FC = () => {
     navigate(categoryId === 'all' ? '/podcasts' : `/podcasts/category/${categoryId}`);
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      // TODO: Implement search functionality
+    if (!searchQuery.trim()) return;
+    
+    try {
+      setIsSearching(true);
       console.log('Searching for:', searchQuery);
+      
+      // Search in podcast names, descriptions and authors
+      const { data, error } = await supabase
+        .from('podcasts')
+        .select('*')
+        .or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,author.ilike.%${searchQuery}%`)
+        .eq('status', 'published')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      console.log(`Found ${data?.length || 0} podcasts matching "${searchQuery}"`);
+      setSearchResults(data || []);
+      
+      // If no results, we'll show a message in the UI
+      if (data?.length === 0) {
+        console.log('No podcasts found matching the search criteria');
+      }
+    } catch (err: any) {
+      console.error('Error searching podcasts:', err);
+      setError(err.message);
+    } finally {
+      setIsSearching(false);
     }
+  };
+  
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
   };
 
   return (
@@ -182,22 +214,97 @@ const PodcastPage: React.FC = () => {
             </div>
           )}
 
-          {/* Featured Section */}
-          <div className="mb-12">
-            <div className="flex items-center mb-6">
-              <TrendingUp className="mr-3 text-accent-500" size={24} />
-              <h2 className="text-2xl sm:text-3xl font-bold text-white">Featured Podcasts</h2>
-            </div>
-            
-            {isLoading ? (
-              <div className="text-center py-12">
-                <div className="animate-spin w-12 h-12 border-4 border-accent-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                <p className="text-gray-400">Loading amazing podcasts...</p>
+          {/* Search Results Section */}
+          {searchResults.length > 0 && (
+            <div className="mb-12">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <Search className="mr-3 text-accent-500" size={24} />
+                  <h2 className="text-2xl sm:text-3xl font-bold text-white">Search Results</h2>
+                </div>
+                <button 
+                  onClick={clearSearch}
+                  className="text-sm text-gray-400 hover:text-white flex items-center gap-1 px-3 py-1 bg-dark-800 rounded-full transition-colors"
+                >
+                  Clear search
+                </button>
               </div>
-            ) : (
-              <PodcastList />
-            )}
-          </div>
+              
+              {isSearching ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin w-12 h-12 border-4 border-accent-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                  <p className="text-gray-400">Searching podcasts...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
+                  {searchResults.map(podcast => (
+                    <a 
+                      key={podcast.id}
+                      href={`/podcasts/${podcast.slug || podcast.id}`}
+                      className="group bg-dark-800 rounded-lg overflow-hidden hover:bg-dark-700 transition-colors duration-200"
+                    >
+                      <div className="aspect-square relative">
+                        {podcast.image_url ? (
+                          <img 
+                            src={podcast.image_url} 
+                            alt={podcast.name} 
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-dark-700">
+                            <Headphones size={32} className="text-accent-500" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3">
+                        <h3 className="font-medium text-white line-clamp-1 group-hover:text-accent-400 transition-colors">
+                          {podcast.name}
+                        </h3>
+                        <p className="text-gray-400 text-sm line-clamp-1 mt-1">
+                          {podcast.author || 'Unknown Author'}
+                        </p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* No Results Message */}
+          {searchQuery && searchResults.length === 0 && !isSearching && (
+            <div className="mb-12 bg-dark-800 rounded-lg p-8 text-center">
+              <Search size={48} className="text-gray-600 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-white mb-2">No podcasts found</h3>
+              <p className="text-gray-400 mb-6">We couldn't find any podcasts matching "{searchQuery}"</p>
+              <button
+                onClick={clearSearch}
+                className="px-6 py-3 bg-accent-600 hover:bg-accent-700 text-white rounded-full font-medium transition-colors"
+              >
+                Clear Search
+              </button>
+            </div>
+          )}
+          
+          {/* Featured Section - Only show if not searching */}
+          {(!searchQuery || searchResults.length === 0) && (
+            <div className="mb-12">
+              <div className="flex items-center mb-6">
+                <TrendingUp className="mr-3 text-accent-500" size={24} />
+                <h2 className="text-2xl sm:text-3xl font-bold text-white">Featured Podcasts</h2>
+              </div>
+              
+              {isLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin w-12 h-12 border-4 border-accent-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                  <p className="text-gray-400">Loading amazing podcasts...</p>
+                </div>
+              ) : (
+                <PodcastList />
+              )}
+            </div>
+          )}
 
           {/* Ad Unit */}
           <div className="mb-12">
