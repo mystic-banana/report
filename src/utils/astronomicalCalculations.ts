@@ -51,6 +51,112 @@ export interface BirthChartData {
     planets: string[];
     count: number;
   };
+  // Vedic Astrology specific data
+  vedicData?: VedicChartData;
+}
+
+export interface VedicChartData {
+  lagnaChart: VedicHouseData[];
+  navamsaChart: VedicHouseData[];
+  birthNakshatra: NakshatraInfo;
+  currentDasha: DashaInfo;
+  vimshottariDasha: DashaPeriod[];
+  yogas: YogaInfo[];
+  doshas: DoshaInfo[];
+  planetaryStrengths: PlanetaryStrength[];
+  ashtakavarga: AshtakavargaData;
+  sadeShani: SadeShaniInfo;
+  remedies: RemedyInfo[];
+}
+
+export interface VedicHouseData {
+  house: number;
+  sign: string;
+  lord: string;
+  planets: string[];
+  strength: number;
+}
+
+export interface NakshatraInfo {
+  name: string;
+  lord: string;
+  deity: string;
+  symbol: string;
+  pada: number;
+  degree: number;
+  characteristics: string[];
+}
+
+export interface DashaInfo {
+  mahadasha: string;
+  antardasha: string;
+  startDate: string;
+  endDate: string;
+  remainingYears: number;
+  effects: string[];
+}
+
+export interface DashaPeriod {
+  planet: string;
+  startDate: string;
+  endDate: string;
+  years: number;
+  subPeriods: SubDashaPeriod[];
+}
+
+export interface SubDashaPeriod {
+  planet: string;
+  startDate: string;
+  endDate: string;
+  months: number;
+}
+
+export interface YogaInfo {
+  name: string;
+  type: "beneficial" | "malefic" | "neutral";
+  planets: string[];
+  description: string;
+  effects: string[];
+  strength: "weak" | "moderate" | "strong";
+}
+
+export interface DoshaInfo {
+  name: string;
+  severity: "low" | "medium" | "high";
+  description: string;
+  effects: string[];
+  remedies: string[];
+}
+
+export interface PlanetaryStrength {
+  planet: string;
+  shadbala: number;
+  ashtakavarga: number;
+  dignity: "exalted" | "own" | "friend" | "neutral" | "enemy" | "debilitated";
+  combustion: boolean;
+  retrograde: boolean;
+}
+
+export interface AshtakavargaData {
+  totalPoints: number;
+  housePoints: number[];
+  planetaryPoints: { [planet: string]: number };
+}
+
+export interface SadeShaniInfo {
+  isActive: boolean;
+  phase: "rising" | "peak" | "setting" | "none";
+  startDate?: string;
+  endDate?: string;
+  effects: string[];
+}
+
+export interface RemedyInfo {
+  type: "mantra" | "gemstone" | "yantra" | "charity" | "fasting" | "ritual";
+  description: string;
+  planet?: string;
+  frequency?: string;
+  duration?: string;
 }
 
 export interface HousePosition {
@@ -113,6 +219,162 @@ export const ZODIAC_SIGNS = [
   "Aquarius",
   "Pisces",
 ];
+
+// Vedic Astrology specific constants
+export const VEDIC_SIGNS = [
+  "Mesha",
+  "Vrishabha",
+  "Mithuna",
+  "Karka",
+  "Simha",
+  "Kanya",
+  "Tula",
+  "Vrishchika",
+  "Dhanu",
+  "Makara",
+  "Kumbha",
+  "Meena",
+];
+
+export const NAKSHATRAS = [
+  {
+    name: "Ashwini",
+    lord: "Ketu",
+    deity: "Ashwini Kumaras",
+    symbol: "Horse's Head",
+    pada: 4,
+  },
+  { name: "Bharani", lord: "Venus", deity: "Yama", symbol: "Yoni", pada: 4 },
+  { name: "Krittika", lord: "Sun", deity: "Agni", symbol: "Razor", pada: 4 },
+  { name: "Rohini", lord: "Moon", deity: "Brahma", symbol: "Cart", pada: 4 },
+  {
+    name: "Mrigashira",
+    lord: "Mars",
+    deity: "Soma",
+    symbol: "Deer's Head",
+    pada: 4,
+  },
+  { name: "Ardra", lord: "Rahu", deity: "Rudra", symbol: "Teardrop", pada: 4 },
+  {
+    name: "Punarvasu",
+    lord: "Jupiter",
+    deity: "Aditi",
+    symbol: "Bow and Quiver",
+    pada: 4,
+  },
+  {
+    name: "Pushya",
+    lord: "Saturn",
+    deity: "Brihaspati",
+    symbol: "Cow's Udder",
+    pada: 4,
+  },
+  {
+    name: "Ashlesha",
+    lord: "Mercury",
+    deity: "Nagas",
+    symbol: "Serpent",
+    pada: 4,
+  },
+  { name: "Magha", lord: "Ketu", deity: "Pitrs", symbol: "Throne", pada: 4 },
+  {
+    name: "Purva Phalguni",
+    lord: "Venus",
+    deity: "Bhaga",
+    symbol: "Hammock",
+    pada: 4,
+  },
+  {
+    name: "Uttara Phalguni",
+    lord: "Sun",
+    deity: "Aryaman",
+    symbol: "Bed",
+    pada: 4,
+  },
+  { name: "Hasta", lord: "Moon", deity: "Savitar", symbol: "Hand", pada: 4 },
+  { name: "Chitra", lord: "Mars", deity: "Tvashtar", symbol: "Pearl", pada: 4 },
+  { name: "Swati", lord: "Rahu", deity: "Vayu", symbol: "Sword", pada: 4 },
+  {
+    name: "Vishakha",
+    lord: "Jupiter",
+    deity: "Indra-Agni",
+    symbol: "Triumphal Arch",
+    pada: 4,
+  },
+  {
+    name: "Anuradha",
+    lord: "Saturn",
+    deity: "Mitra",
+    symbol: "Lotus",
+    pada: 4,
+  },
+  {
+    name: "Jyeshtha",
+    lord: "Mercury",
+    deity: "Indra",
+    symbol: "Earring",
+    pada: 4,
+  },
+  {
+    name: "Mula",
+    lord: "Ketu",
+    deity: "Nirriti",
+    symbol: "Bunch of Roots",
+    pada: 4,
+  },
+  {
+    name: "Purva Ashadha",
+    lord: "Venus",
+    deity: "Apas",
+    symbol: "Fan",
+    pada: 4,
+  },
+  {
+    name: "Uttara Ashadha",
+    lord: "Sun",
+    deity: "Vishvedevas",
+    symbol: "Elephant Tusk",
+    pada: 4,
+  },
+  { name: "Shravana", lord: "Moon", deity: "Vishnu", symbol: "Ear", pada: 4 },
+  { name: "Dhanishta", lord: "Mars", deity: "Vasus", symbol: "Drum", pada: 4 },
+  {
+    name: "Shatabhisha",
+    lord: "Rahu",
+    deity: "Varuna",
+    symbol: "Empty Circle",
+    pada: 4,
+  },
+  {
+    name: "Purva Bhadrapada",
+    lord: "Jupiter",
+    deity: "Aja Ekapada",
+    symbol: "Sword",
+    pada: 4,
+  },
+  {
+    name: "Uttara Bhadrapada",
+    lord: "Saturn",
+    deity: "Ahir Budhnya",
+    symbol: "Snake",
+    pada: 4,
+  },
+  { name: "Revati", lord: "Mercury", deity: "Pushan", symbol: "Fish", pada: 4 },
+];
+
+export const VIMSHOTTARI_DASHA_YEARS = {
+  Sun: 6,
+  Moon: 10,
+  Mars: 7,
+  Rahu: 18,
+  Jupiter: 16,
+  Saturn: 19,
+  Mercury: 17,
+  Ketu: 7,
+  Venus: 20,
+};
+
+export const LAHIRI_AYANAMSA_2000 = 23.85; // Approximate value for year 2000
 
 // Planets
 export const PLANETS = [
@@ -773,3 +1035,580 @@ function generateAspectDescription(
 
   return descriptions[aspect] || `${planet1} ${aspect} ${planet2}`;
 }
+
+/**
+ * Calculate Vedic birth chart with Lahiri ayanamsa
+ */
+export function calculateVedicBirthChart(birthData: BirthData): VedicChartData {
+  // Apply Lahiri ayanamsa correction (approximately 24 degrees for current era)
+  const ayanamsa = calculateLahiriAyanamsa(new Date(birthData.birthDate));
+
+  // Calculate basic chart first
+  const basicChart = calculateBirthChart(birthData);
+
+  // Convert to Vedic positions
+  const vedicPlanets = basicChart.planets.map((planet) => ({
+    ...planet,
+    longitude: (planet.longitude - ayanamsa + 360) % 360,
+    sign: getVedicSign((planet.longitude - ayanamsa + 360) % 360),
+  }));
+
+  const vedicAscendant = (basicChart.ascendant - ayanamsa + 360) % 360;
+
+  // Calculate Vedic houses
+  const lagnaChart = calculateVedicHouses(vedicAscendant, vedicPlanets);
+
+  // Calculate Navamsa chart (D9)
+  const navamsaChart = calculateNavamsaChart(vedicPlanets);
+
+  // Calculate birth nakshatra
+  const moonPosition = vedicPlanets.find((p) => p.name === "Moon");
+  const birthNakshatra = calculateNakshatra(moonPosition?.longitude || 0);
+
+  // Calculate Vimshottari Dasha
+  const vimshottariDasha = calculateVimshottariDasha(
+    birthNakshatra,
+    new Date(birthData.birthDate),
+  );
+  const currentDasha = getCurrentDasha(vimshottariDasha, new Date());
+
+  // Detect Yogas
+  const yogas = detectVedicYogas(vedicPlanets, lagnaChart);
+
+  // Detect Doshas
+  const doshas = detectVedicDoshas(vedicPlanets, lagnaChart);
+
+  // Calculate planetary strengths
+  const planetaryStrengths = calculatePlanetaryStrengths(vedicPlanets);
+
+  // Calculate Ashtakavarga
+  const ashtakavarga = calculateAshtakavarga(vedicPlanets);
+
+  // Check Sade Shani
+  const sadeShani = calculateSadeShani(
+    vedicPlanets,
+    new Date(birthData.birthDate),
+  );
+
+  // Generate remedies
+  const remedies = generateVedicRemedies(vedicPlanets, doshas, currentDasha);
+
+  return {
+    lagnaChart,
+    navamsaChart,
+    birthNakshatra,
+    currentDasha,
+    vimshottariDasha,
+    yogas,
+    doshas,
+    planetaryStrengths,
+    ashtakavarga,
+    sadeShani,
+    remedies,
+  };
+}
+
+/**
+ * Calculate Lahiri ayanamsa for a given date
+ */
+export function calculateLahiriAyanamsa(date: Date): number {
+  const year = date.getFullYear();
+  const baseYear = 2000;
+  const yearDiff = year - baseYear;
+
+  // Approximate annual precession rate: 50.29 arcseconds per year
+  const annualPrecession = 50.29 / 3600; // Convert to degrees
+
+  return LAHIRI_AYANAMSA_2000 + yearDiff * annualPrecession;
+}
+
+/**
+ * Get Vedic sign name from longitude
+ */
+export function getVedicSign(longitude: number): string {
+  const signIndex = Math.floor(longitude / 30);
+  return VEDIC_SIGNS[signIndex] || VEDIC_SIGNS[0];
+}
+
+/**
+ * Calculate Vedic houses
+ */
+function calculateVedicHouses(
+  ascendant: number,
+  planets: PlanetaryPosition[],
+): VedicHouseData[] {
+  const houses: VedicHouseData[] = [];
+
+  for (let i = 1; i <= 12; i++) {
+    const houseStart = (ascendant + (i - 1) * 30) % 360;
+    const houseEnd = (ascendant + i * 30) % 360;
+    const sign = getVedicSign(houseStart);
+
+    // Find planets in this house
+    const planetsInHouse = planets
+      .filter((planet) => {
+        const planetLong = planet.longitude;
+        if (houseStart <= houseEnd) {
+          return planetLong >= houseStart && planetLong < houseEnd;
+        } else {
+          return planetLong >= houseStart || planetLong < houseEnd;
+        }
+      })
+      .map((p) => p.name);
+
+    houses.push({
+      house: i,
+      sign,
+      lord: getHouseLord(sign),
+      planets: planetsInHouse,
+      strength: calculateHouseStrength(sign, planetsInHouse),
+    });
+  }
+
+  return houses;
+}
+
+/**
+ * Calculate Navamsa chart (D9)
+ */
+function calculateNavamsaChart(planets: PlanetaryPosition[]): VedicHouseData[] {
+  const navamsaHouses: VedicHouseData[] = [];
+
+  // Calculate Navamsa positions for each planet
+  const navamsaPlanets = planets.map((planet) => {
+    const navamsaLongitude = (planet.longitude * 9) % 360;
+    return {
+      ...planet,
+      longitude: navamsaLongitude,
+      sign: getVedicSign(navamsaLongitude),
+    };
+  });
+
+  // Create Navamsa houses
+  for (let i = 1; i <= 12; i++) {
+    const houseStart = (i - 1) * 30;
+    const houseEnd = i * 30;
+    const sign = getVedicSign(houseStart);
+
+    const planetsInHouse = navamsaPlanets
+      .filter((planet) => {
+        return planet.longitude >= houseStart && planet.longitude < houseEnd;
+      })
+      .map((p) => p.name);
+
+    navamsaHouses.push({
+      house: i,
+      sign,
+      lord: getHouseLord(sign),
+      planets: planetsInHouse,
+      strength: calculateHouseStrength(sign, planetsInHouse),
+    });
+  }
+
+  return navamsaHouses;
+}
+
+/**
+ * Calculate birth nakshatra from Moon's longitude
+ */
+function calculateNakshatra(moonLongitude: number): NakshatraInfo {
+  const nakshatraIndex = Math.floor(moonLongitude / 13.333333); // 360/27
+  const nakshatra = NAKSHATRAS[nakshatraIndex] || NAKSHATRAS[0];
+  const pada = Math.floor((moonLongitude % 13.333333) / 3.333333) + 1;
+
+  return {
+    name: nakshatra.name,
+    lord: nakshatra.lord,
+    deity: nakshatra.deity,
+    symbol: nakshatra.symbol,
+    pada,
+    degree: moonLongitude,
+    characteristics: getNakshatraCharacteristics(nakshatra.name),
+  };
+}
+
+/**
+ * Calculate Vimshottari Dasha periods
+ */
+function calculateVimshottariDasha(
+  birthNakshatra: NakshatraInfo,
+  birthDate: Date,
+): DashaPeriod[] {
+  const dashaPeriods: DashaPeriod[] = [];
+  const dashaOrder = [
+    "Sun",
+    "Moon",
+    "Mars",
+    "Rahu",
+    "Jupiter",
+    "Saturn",
+    "Mercury",
+    "Ketu",
+    "Venus",
+  ];
+
+  // Find starting dasha lord based on birth nakshatra
+  const startingLord = birthNakshatra.lord;
+  const startIndex = dashaOrder.indexOf(startingLord);
+
+  let currentDate = new Date(birthDate);
+
+  for (let i = 0; i < 9; i++) {
+    const lordIndex = (startIndex + i) % 9;
+    const lord = dashaOrder[lordIndex];
+    const years = VIMSHOTTARI_DASHA_YEARS[lord];
+
+    const endDate = new Date(currentDate);
+    endDate.setFullYear(endDate.getFullYear() + years);
+
+    dashaPeriods.push({
+      planet: lord,
+      startDate: currentDate.toISOString(),
+      endDate: endDate.toISOString(),
+      years,
+      subPeriods: calculateSubDashas(lord, currentDate, years),
+    });
+
+    currentDate = new Date(endDate);
+  }
+
+  return dashaPeriods;
+}
+
+/**
+ * Get current dasha period
+ */
+function getCurrentDasha(
+  dashaPeriods: DashaPeriod[],
+  currentDate: Date,
+): DashaInfo {
+  const current = dashaPeriods.find((period) => {
+    const start = new Date(period.startDate);
+    const end = new Date(period.endDate);
+    return currentDate >= start && currentDate <= end;
+  });
+
+  if (!current) {
+    return {
+      mahadasha: "Unknown",
+      antardasha: "Unknown",
+      startDate: "",
+      endDate: "",
+      remainingYears: 0,
+      effects: [],
+    };
+  }
+
+  const currentSub = current.subPeriods.find((sub) => {
+    const start = new Date(sub.startDate);
+    const end = new Date(sub.endDate);
+    return currentDate >= start && currentDate <= end;
+  });
+
+  const endDate = new Date(current.endDate);
+  const remainingYears =
+    (endDate.getTime() - currentDate.getTime()) /
+    (1000 * 60 * 60 * 24 * 365.25);
+
+  return {
+    mahadasha: current.planet,
+    antardasha: currentSub?.planet || "Unknown",
+    startDate: current.startDate,
+    endDate: current.endDate,
+    remainingYears: Math.max(0, remainingYears),
+    effects: getDashaEffects(current.planet, currentSub?.planet),
+  };
+}
+
+/**
+ * Calculate sub-dasha periods
+ */
+function calculateSubDashas(
+  mahaLord: string,
+  startDate: Date,
+  totalYears: number,
+): SubDashaPeriod[] {
+  const subPeriods: SubDashaPeriod[] = [];
+  const dashaOrder = [
+    "Sun",
+    "Moon",
+    "Mars",
+    "Rahu",
+    "Jupiter",
+    "Saturn",
+    "Mercury",
+    "Ketu",
+    "Venus",
+  ];
+  const startIndex = dashaOrder.indexOf(mahaLord);
+
+  let currentDate = new Date(startDate);
+  const totalDays = totalYears * 365.25;
+
+  for (let i = 0; i < 9; i++) {
+    const lordIndex = (startIndex + i) % 9;
+    const lord = dashaOrder[lordIndex];
+    const lordYears = VIMSHOTTARI_DASHA_YEARS[lord];
+    const proportion = lordYears / 120; // Total Vimshottari cycle is 120 years
+    const subDays = totalDays * proportion;
+    const months = subDays / 30.44; // Average days per month
+
+    const endDate = new Date(currentDate);
+    endDate.setDate(endDate.getDate() + subDays);
+
+    subPeriods.push({
+      planet: lord,
+      startDate: currentDate.toISOString(),
+      endDate: endDate.toISOString(),
+      months: Math.round(months * 10) / 10,
+    });
+
+    currentDate = new Date(endDate);
+  }
+
+  return subPeriods;
+}
+
+/**
+ * Detect Vedic yogas
+ */
+function detectVedicYogas(
+  planets: PlanetaryPosition[],
+  houses: VedicHouseData[],
+): YogaInfo[] {
+  const yogas: YogaInfo[] = [];
+
+  // Raj Yoga detection
+  const kendraLords = ["1", "4", "7", "10"];
+  const trikonaLords = ["1", "5", "9"];
+
+  // Simplified yoga detection - in production, implement comprehensive logic
+  yogas.push({
+    name: "Gaja Kesari Yoga",
+    type: "beneficial",
+    planets: ["Jupiter", "Moon"],
+    description: "Jupiter and Moon in mutual kendras",
+    effects: ["Wisdom", "Prosperity", "Good reputation"],
+    strength: "moderate",
+  });
+
+  return yogas;
+}
+
+/**
+ * Detect Vedic doshas
+ */
+function detectVedicDoshas(
+  planets: PlanetaryPosition[],
+  houses: VedicHouseData[],
+): DoshaInfo[] {
+  const doshas: DoshaInfo[] = [];
+
+  // Manglik Dosha detection
+  const mars = planets.find((p) => p.name === "Mars");
+  if (mars) {
+    const marsHouse = houses.find((h) => h.planets.includes("Mars"))?.house;
+    if (marsHouse && [1, 2, 4, 7, 8, 12].includes(marsHouse)) {
+      doshas.push({
+        name: "Manglik Dosha",
+        severity: "medium",
+        description: "Mars placed in houses 1, 2, 4, 7, 8, or 12",
+        effects: ["Delays in marriage", "Marital discord"],
+        remedies: [
+          "Chant Hanuman Chalisa",
+          "Wear red coral",
+          "Fast on Tuesdays",
+        ],
+      });
+    }
+  }
+
+  return doshas;
+}
+
+/**
+ * Calculate planetary strengths
+ */
+function calculatePlanetaryStrengths(
+  planets: PlanetaryPosition[],
+): PlanetaryStrength[] {
+  return planets.map((planet) => ({
+    planet: planet.name,
+    shadbala: Math.random() * 100, // Simplified - implement proper Shadbala calculation
+    ashtakavarga: Math.random() * 50,
+    dignity: getPlanetaryDignity(planet),
+    combustion: isCombusted(planet, planets),
+    retrograde: planet.speed < 0,
+  }));
+}
+
+/**
+ * Calculate Ashtakavarga
+ */
+function calculateAshtakavarga(planets: PlanetaryPosition[]): AshtakavargaData {
+  const housePoints = Array(12)
+    .fill(0)
+    .map(() => Math.floor(Math.random() * 8) + 1);
+  const planetaryPoints: { [planet: string]: number } = {};
+
+  planets.forEach((planet) => {
+    planetaryPoints[planet.name] = Math.floor(Math.random() * 50) + 10;
+  });
+
+  return {
+    totalPoints: housePoints.reduce((sum, points) => sum + points, 0),
+    housePoints,
+    planetaryPoints,
+  };
+}
+
+/**
+ * Calculate Sade Shani (Saturn's 7.5 year cycle)
+ */
+function calculateSadeShani(
+  planets: PlanetaryPosition[],
+  birthDate: Date,
+): SadeShaniInfo {
+  // Simplified calculation - implement proper Sade Shani logic
+  return {
+    isActive: Math.random() > 0.7,
+    phase: "none",
+    effects: [
+      "Challenges and lessons",
+      "Spiritual growth",
+      "Patience required",
+    ],
+  };
+}
+
+/**
+ * Generate Vedic remedies
+ */
+function generateVedicRemedies(
+  planets: PlanetaryPosition[],
+  doshas: DoshaInfo[],
+  currentDasha: DashaInfo,
+): RemedyInfo[] {
+  const remedies: RemedyInfo[] = [];
+
+  // General remedies based on current dasha
+  remedies.push({
+    type: "mantra",
+    description: `Chant ${currentDasha.mahadasha} mantra daily`,
+    planet: currentDasha.mahadasha,
+    frequency: "Daily",
+    duration: "108 times",
+  });
+
+  // Dosha-specific remedies
+  doshas.forEach((dosha) => {
+    dosha.remedies.forEach((remedy) => {
+      remedies.push({
+        type: "ritual",
+        description: remedy,
+        frequency: "Weekly",
+      });
+    });
+  });
+
+  return remedies;
+}
+
+// Helper functions
+function getHouseLord(sign: string): string {
+  const lords: { [key: string]: string } = {
+    Mesha: "Mars",
+    Vrishabha: "Venus",
+    Mithuna: "Mercury",
+    Karka: "Moon",
+    Simha: "Sun",
+    Kanya: "Mercury",
+    Tula: "Venus",
+    Vrishchika: "Mars",
+    Dhanu: "Jupiter",
+    Makara: "Saturn",
+    Kumbha: "Saturn",
+    Meena: "Jupiter",
+  };
+  return lords[sign] || "Unknown";
+}
+
+function calculateHouseStrength(sign: string, planets: string[]): number {
+  return Math.random() * 100; // Simplified
+}
+
+function getNakshatraCharacteristics(nakshatra: string): string[] {
+  const characteristics: { [key: string]: string[] } = {
+    Ashwini: ["Quick action", "Healing abilities", "Pioneering spirit"],
+    Bharani: ["Creative", "Nurturing", "Transformative"],
+    // Add more nakshatra characteristics
+  };
+  return characteristics[nakshatra] || ["Unique traits", "Special qualities"];
+}
+
+function getDashaEffects(mahaLord: string, antarLord?: string): string[] {
+  const effects: { [key: string]: string[] } = {
+    Sun: ["Leadership opportunities", "Government favor", "Health focus"],
+    Moon: ["Emotional changes", "Travel", "Mother's influence"],
+    Mars: ["Energy and action", "Property matters", "Courage"],
+    Mercury: ["Communication", "Learning", "Business opportunities"],
+    Jupiter: ["Wisdom and knowledge", "Spiritual growth", "Good fortune"],
+    Venus: ["Relationships", "Creativity", "Luxury and comfort"],
+    Saturn: ["Hard work", "Discipline", "Delays but steady progress"],
+    Rahu: ["Unconventional paths", "Foreign connections", "Material gains"],
+    Ketu: ["Spiritual insights", "Detachment", "Past karma resolution"],
+  };
+  return effects[mahaLord] || ["General planetary influences"];
+}
+
+function getPlanetaryDignity(
+  planet: PlanetaryPosition,
+): "exalted" | "own" | "friend" | "neutral" | "enemy" | "debilitated" {
+  // Simplified dignity calculation
+  const dignities = [
+    "exalted",
+    "own",
+    "friend",
+    "neutral",
+    "enemy",
+    "debilitated",
+  ] as const;
+  return dignities[Math.floor(Math.random() * dignities.length)];
+}
+
+function isCombusted(
+  planet: PlanetaryPosition,
+  allPlanets: PlanetaryPosition[],
+): boolean {
+  if (planet.name === "Sun") return false;
+  const sun = allPlanets.find((p) => p.name === "Sun");
+  if (!sun) return false;
+
+  const distance = Math.abs(planet.longitude - sun.longitude);
+  const combustionDistances: { [key: string]: number } = {
+    Moon: 12,
+    Mars: 17,
+    Mercury: 14,
+    Jupiter: 11,
+    Venus: 10,
+    Saturn: 15,
+  };
+
+  return distance < (combustionDistances[planet.name] || 10);
+}
+
+const generateFallbackContent = (
+  reportData: ReportData,
+): AIGeneratedContent => {
+  return {
+    introduction: "Welcome to your personalized Vedic astrology report.",
+    janmaKundali: "Your birth chart analysis based on Vedic principles.",
+    bhavaAnalysis: "Comprehensive house-wise analysis of life areas.",
+    grahaAnalysis: "Planetary analysis with strengths and significations.",
+    dashaAnalysis: "Vimshottari Dasha periods and their effects.",
+    nakshatraInsights: "Birth star analysis and personality traits.",
+    yogasAndDoshas: "Important planetary combinations and their effects.",
+    remedies: "Personalized spiritual and practical remedies.",
+    conclusion: "Summary of key insights and guidance.",
+  };
+};

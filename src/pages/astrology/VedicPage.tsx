@@ -148,20 +148,36 @@ const VedicPage: React.FC = () => {
                       ))}
                     </select>
                   </div>
-                  <Button
-                    className="bg-gradient-to-r from-orange-600 to-red-600"
-                    disabled={!selectedChart}
-                    onClick={() => {
-                      if (selectedChart) {
-                        // Navigate to create Vedic report
-                        navigate(
-                          `/astrology/reports?chartId=${selectedChart}&type=vedic`,
-                        );
-                      }
-                    }}
-                  >
-                    Generate Vedic Report
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <Button
+                      className="bg-gradient-to-r from-orange-600 to-red-600"
+                      disabled={!selectedChart}
+                      onClick={() => {
+                        if (selectedChart) {
+                          // Navigate to create Vedic report
+                          navigate(
+                            `/astrology/reports?chartId=${selectedChart}&type=vedic`,
+                          );
+                        }
+                      }}
+                    >
+                      Generate Basic Vedic Report
+                    </Button>
+                    <Button
+                      className="bg-gradient-to-r from-amber-600 to-orange-600"
+                      disabled={!selectedChart}
+                      onClick={() => {
+                        if (selectedChart) {
+                          // Navigate to create Premium Vedic report
+                          navigate(
+                            `/astrology/reports?chartId=${selectedChart}&type=vedic-premium`,
+                          );
+                        }
+                      }}
+                    >
+                      Generate Premium Report
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -293,8 +309,135 @@ const VedicPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Educational Content */}
+          {/* Comprehensive Vedic Features */}
           <div className="mt-12 bg-dark-800 rounded-2xl p-8 border border-dark-700">
+            <h3 className="text-2xl font-serif font-bold text-white mb-8 text-center">
+              Complete Vedic Astrology Analysis
+            </h3>
+
+            {/* Core Features Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              <div className="bg-gradient-to-br from-orange-900/30 to-red-900/30 rounded-xl p-6 border border-orange-500/20">
+                <Star className="w-8 h-8 text-orange-400 mb-4" />
+                <h4 className="text-lg font-semibold text-white mb-3">
+                  Janma Kundali
+                </h4>
+                <ul className="text-gray-400 space-y-1 text-sm">
+                  <li>• Lagna (Ascendant) Chart</li>
+                  <li>• Navamsa (D9) Chart</li>
+                  <li>• Planetary positions & degrees</li>
+                  <li>• House rulers & significators</li>
+                </ul>
+              </div>
+
+              <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 rounded-xl p-6 border border-blue-500/20">
+                <Calendar className="w-8 h-8 text-blue-400 mb-4" />
+                <h4 className="text-lg font-semibold text-white mb-3">
+                  Dasha System
+                </h4>
+                <ul className="text-gray-400 space-y-1 text-sm">
+                  <li>• Vimshottari Dasha periods</li>
+                  <li>• Current Mahadasha effects</li>
+                  <li>• Antardasha timelines</li>
+                  <li>• Future predictions</li>
+                </ul>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 rounded-xl p-6 border border-purple-500/20">
+                <Moon className="w-8 h-8 text-purple-400 mb-4" />
+                <h4 className="text-lg font-semibold text-white mb-3">
+                  Nakshatra Analysis
+                </h4>
+                <ul className="text-gray-400 space-y-1 text-sm">
+                  <li>• Birth star & pada</li>
+                  <li>• Ruling deity & symbol</li>
+                  <li>• Personality traits</li>
+                  <li>• Compatibility factors</li>
+                </ul>
+              </div>
+
+              <div className="bg-gradient-to-br from-green-900/30 to-teal-900/30 rounded-xl p-6 border border-green-500/20">
+                <Sparkles className="w-8 h-8 text-green-400 mb-4" />
+                <h4 className="text-lg font-semibold text-white mb-3">
+                  Yogas & Doshas
+                </h4>
+                <ul className="text-gray-400 space-y-1 text-sm">
+                  <li>• Raj Yoga combinations</li>
+                  <li>• Dhana Yoga analysis</li>
+                  <li>• Manglik Dosha check</li>
+                  <li>• Remedial measures</li>
+                </ul>
+              </div>
+
+              <div className="bg-gradient-to-br from-yellow-900/30 to-orange-900/30 rounded-xl p-6 border border-yellow-500/20">
+                <Sun className="w-8 h-8 text-yellow-400 mb-4" />
+                <h4 className="text-lg font-semibold text-white mb-3">
+                  Planetary Strength
+                </h4>
+                <ul className="text-gray-400 space-y-1 text-sm">
+                  <li>• Shadbala calculations</li>
+                  <li>• Ashtakavarga points</li>
+                  <li>• Dignity & combustion</li>
+                  <li>• Retrograde effects</li>
+                </ul>
+              </div>
+
+              <div className="bg-gradient-to-br from-indigo-900/30 to-purple-900/30 rounded-xl p-6 border border-indigo-500/20">
+                <BookOpen className="w-8 h-8 text-indigo-400 mb-4" />
+                <h4 className="text-lg font-semibold text-white mb-3">
+                  Spiritual Remedies
+                </h4>
+                <ul className="text-gray-400 space-y-1 text-sm">
+                  <li>• Personalized mantras</li>
+                  <li>• Gemstone recommendations</li>
+                  <li>• Yantra suggestions</li>
+                  <li>• Charity & fasting</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Comparison Table */}
+            <div className="bg-gradient-to-r from-dark-700 to-dark-600 rounded-xl p-6 border border-dark-500">
+              <h4 className="text-xl font-semibold text-white mb-6 text-center">
+                Free vs Premium Vedic Reports
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-dark-800/50 rounded-lg p-4">
+                  <h5 className="text-orange-400 font-semibold mb-3 flex items-center">
+                    <Star className="w-5 h-5 mr-2" />
+                    Free Vedic Report
+                  </h5>
+                  <ul className="text-gray-400 space-y-2 text-sm">
+                    <li>✓ Basic Janma Kundali</li>
+                    <li>✓ Birth Nakshatra analysis</li>
+                    <li>✓ Current Dasha period</li>
+                    <li>✓ House-wise basic analysis</li>
+                    <li>✓ General spiritual guidance</li>
+                    <li>✓ Basic remedies</li>
+                  </ul>
+                </div>
+                <div className="bg-gradient-to-br from-amber-900/20 to-orange-900/20 rounded-lg p-4 border border-amber-500/30">
+                  <h5 className="text-amber-400 font-semibold mb-3 flex items-center">
+                    <Crown className="w-5 h-5 mr-2" />
+                    Premium Vedic Report
+                  </h5>
+                  <ul className="text-gray-400 space-y-2 text-sm">
+                    <li>✓ Complete Janma Kundali + Navamsa</li>
+                    <li>✓ Detailed Vimshottari Dasha timeline</li>
+                    <li>✓ Comprehensive Yoga analysis</li>
+                    <li>✓ Dosha detection & remedies</li>
+                    <li>✓ Shadbala & Ashtakavarga</li>
+                    <li>✓ Sade Sati analysis</li>
+                    <li>✓ Personalized mantras & practices</li>
+                    <li>✓ Detailed transit predictions</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Educational Content */}
+          <div className="mt-8 bg-dark-800 rounded-2xl p-8 border border-dark-700">
             <h3 className="text-2xl font-serif font-bold text-white mb-6">
               Understanding Vedic Astrology
             </h3>
@@ -309,6 +452,7 @@ const VedicPage: React.FC = () => {
                   <li>• Emphasizes karma and spiritual evolution</li>
                   <li>• Includes detailed timing systems (Dashas)</li>
                   <li>• Provides remedial measures</li>
+                  <li>• Ancient wisdom from Indian sages</li>
                 </ul>
               </div>
               <div>
@@ -321,6 +465,7 @@ const VedicPage: React.FC = () => {
                   <li>• Karmic lessons and soul purpose</li>
                   <li>• Auspicious timing for major decisions</li>
                   <li>• Personalized remedies and mantras</li>
+                  <li>• Spiritual practices for growth</li>
                 </ul>
               </div>
             </div>

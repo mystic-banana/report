@@ -34,6 +34,7 @@ const ReportsPage: React.FC = () => {
     fetchBirthCharts,
     fetchReports,
     createReport,
+    createVedicReport,
     exportReportToPDF,
   } = useAstrologyStore();
 
@@ -161,6 +162,43 @@ const ReportsPage: React.FC = () => {
       estimatedPages: "10-14 pages",
       color: "from-indigo-600 to-blue-600",
     },
+    {
+      id: "vedic",
+      name: "Vedic Astrology Report",
+      description:
+        "Ancient Indian astrology with Janma Kundali, Dasha periods, Nakshatra analysis, and spiritual remedies",
+      premium: false,
+      icon: Star,
+      features: [
+        "Janma Kundali (Birth Chart)",
+        "Nakshatra analysis",
+        "Basic Dasha periods",
+        "House analysis (Bhava)",
+        "Spiritual guidance",
+      ],
+      estimatedPages: "12-16 pages",
+      color: "from-orange-600 to-red-600",
+    },
+    {
+      id: "vedic-premium",
+      name: "Premium Vedic Report",
+      description:
+        "Comprehensive Vedic analysis with detailed Dasha, Yogas, Doshas, Ashtakavarga, and personalized remedies",
+      premium: true,
+      icon: Crown,
+      features: [
+        "Complete Janma Kundali + Navamsa",
+        "Detailed Vimshottari Dasha",
+        "Yogas and Doshas analysis",
+        "Planetary strengths (Shadbala)",
+        "Ashtakavarga system",
+        "Sade Sati analysis",
+        "Personalized remedies",
+        "Spiritual practices",
+      ],
+      estimatedPages: "20-25 pages",
+      color: "from-amber-600 to-orange-600",
+    },
   ];
 
   useEffect(() => {
@@ -187,7 +225,15 @@ const ReportsPage: React.FC = () => {
 
     setIsCreating(true);
     try {
-      await createReport(selectedChart, selectedReportType, reportTitle);
+      if (
+        selectedReportType === "vedic" ||
+        selectedReportType === "vedic-premium"
+      ) {
+        const isPremium = selectedReportType === "vedic-premium";
+        await createVedicReport(selectedChart, isPremium);
+      } else {
+        await createReport(selectedChart, selectedReportType, reportTitle);
+      }
       setReportTitle("");
       setSelectedReportType("");
     } catch (error) {

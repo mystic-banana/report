@@ -41,7 +41,7 @@ const Header: React.FC = () => {
             ["Podcasts", "/podcasts"],
             ["Astrology", "/astrology"],
             ["Horoscopes", "/astrology/horoscopes"],
-            ["Birth Chart", "/astrology/birth-chart"],
+            ["Vedic Astrology", "/astrology/vedic"],
           ].map(([label, path]) => (
             <Link
               key={path}
