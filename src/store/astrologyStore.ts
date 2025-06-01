@@ -141,6 +141,10 @@ interface AstrologyState {
     reportType: string,
     title: string,
   ) => Promise<AstrologyReport | null>;
+  createNatalChartReport: (
+    chartId: string,
+    isPremium?: boolean,
+  ) => Promise<AstrologyReport | null>;
   fetchReports: (userId: string) => Promise<void>;
   exportReportToPDF: (reportId: string) => Promise<string | null>;
 
@@ -440,14 +444,14 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
       const { data, error } = await supabase
         .from("compatibility_reports")
         .select(
-          `
-          *,
-          chart1:birth_charts!compatibility_reports_chart1_id_fkey(name),
-          chart2:birth_charts!compatibility_reports_chart2_id_fkey(name)
-        `,
+          "*, chart1:birth_charts!compatibility_reports_chart1_id_fkey(name), chart2:birth_charts!compatibility_reports_chart2_id_fkey(name)",
         )
         .or(
-          `chart1_id.in.(${chartIds.join(",")}),chart2_id.in.(${chartIds.join(",")})`,
+          "chart1_id.in.(" +
+            chartIds.join(",") +
+            "),chart2_id.in.(" +
+            chartIds.join(",") +
+            ")",
         )
         .order("created_at", { ascending: false });
 
@@ -653,14 +657,27 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
 
       if (chartError) throw chartError;
 
+      // Auto-generate title if not provided
+      const autoTitle =
+        title || generateAutoReportTitle(chartData.name, reportType);
+
       // Check if report type is premium
       const premiumReportTypes = [
         "career",
         "relationships",
         "yearly",
         "spiritual",
+        "vedic",
+        "natal-premium", // Premium natal chart
       ];
-      const isPremium = premiumReportTypes.includes(reportType);
+      const isPremium =
+        premiumReportTypes.includes(reportType) ||
+        reportType.includes("premium");
+      const isVedic = reportType === "vedic";
+      const isNatalChart =
+        reportType === "natal" ||
+        reportType === "birth-chart" ||
+        reportType.includes("natal");
 
       // Generate AI-powered content
       let aiContent = "";
@@ -669,7 +686,7 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
           "../utils/aiContentGenerator"
         );
         aiContent = await generateAIReportContent({
-          reportType,
+          reportType: isNatalChart ? "natal" : reportType,
           userName: chartData.name,
           birthDate: chartData.birth_date,
           chartData: chartData.chart_data,
@@ -677,7 +694,7 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
         });
       } catch (aiError) {
         console.warn("AI content generation failed, using fallback:", aiError);
-        aiContent = `Complete ${reportType} report: ${title}. This comprehensive analysis provides deep insights into your astrological profile based on your birth chart data.`;
+        aiContent = `Complete ${reportType} report: ${autoTitle}. This comprehensive analysis provides deep insights into your astrological profile based on your birth chart data.`;
       }
 
       const { data, error } = await supabase
@@ -686,7 +703,7 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
           user_id: user.id,
           birth_chart_id: chartId,
           report_type: reportType,
-          title,
+          title: autoTitle,
           content: aiContent,
           is_premium: isPremium,
         })
@@ -706,6 +723,11 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
       set({ error: error.message, loading: false });
       return null;
     }
+  },
+
+  createNatalChartReport: (chartId: string, isPremium?: boolean) => {
+    const reportType = isPremium ? "natal-premium" : "natal";
+    return get().createReport(chartId, reportType);
   },
 
   fetchReports: async (userId: string) => {
@@ -731,16 +753,7 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
       // Get the report data with birth chart information
       const { data: report, error: reportError } = await supabase
         .from("astrology_reports")
-        .select(
-          `
-          *,
-          birth_charts!inner(
-            name,
-            birth_date,
-            chart_data
-          )
-        `,
-        )
+        .select("*, birth_charts!inner(name, birth_date, chart_data)")
         .eq("id", reportId)
         .single();
 
@@ -752,6 +765,11 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
       );
 
       // Prepare report data
+      const isNatalChart =
+        report.report_type === "natal" ||
+        report.report_type === "birth-chart" ||
+        report.report_type.includes("natal");
+
       const reportData = {
         title: report.title,
         content: report.content,
@@ -760,6 +778,36 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
         birthDate: report.birth_charts?.birth_date,
         chartData: report.birth_charts?.chart_data,
         isPremium: report.is_premium || false,
+        isNatalChart,
+        // Additional data for natal charts
+        ...(isNatalChart && {
+          planetaryPositions: report.birth_charts?.chart_data?.planets?.map(
+            (p) => ({
+              planet: p.name,
+              sign: p.sign,
+              house: p.house || 0,
+              degree: p.degree + "°" + p.minute + "'" + p.second + '"',
+            }),
+          ),
+          aspectTable: report.birth_charts?.chart_data?.aspects
+            ?.slice(0, 12)
+            .map((a) => ({
+              aspect: a.aspect,
+              planets: a.planet1 + " - " + a.planet2,
+              orb: a.orb.toFixed(1) + "°",
+              meaning: a.description || a.nature || "—",
+            })),
+          elementalBalance: report.birth_charts?.chart_data?.elementalBalance,
+          modalBalance: report.birth_charts?.chart_data?.modalBalance,
+          chartPatterns: report.birth_charts?.chart_data?.chartPatterns?.map(
+            (p) => ({
+              name: p.name,
+              description: p.description,
+            }),
+          ),
+          retrogradeInfo: report.birth_charts?.chart_data?.retrogradeInfo,
+          lunarPhase: report.birth_charts?.chart_data?.lunarPhase,
+        }),
       };
 
       // Generate professional PDF with AI content
@@ -789,14 +837,7 @@ const checkUserPlanLimitations = async (userId: string) => {
     // Get user's current subscription
     const { data: subscription } = await supabase
       .from("user_subscriptions")
-      .select(
-        `
-        *,
-        subscription_plans!inner(
-          astrology_features
-        )
-      `,
-      )
+      .select("*,subscription_plans!inner(astrology_features)")
       .eq("user_id", userId)
       .eq("status", "active")
       .single();
@@ -847,4 +888,44 @@ const checkUserPlanLimitations = async (userId: string) => {
       reportCount: 0,
     };
   }
+};
+
+// New method specifically for natal chart reports
+export const createNatalChartReport = (
+  chartId: string,
+  isPremium: boolean = false,
+) => {
+  const reportType = isPremium ? "natal-premium" : "natal";
+  return useAstrologyStore.getState().createReport(chartId, reportType, "");
+};
+
+// Helper function to generate auto report title
+const generateAutoReportTitle = (
+  userName: string,
+  reportType: string,
+): string => {
+  const typeNames = {
+    natal: "Natal Chart Report",
+    personality: "Personality Profile",
+    career: "Career & Life Purpose Report",
+    relationships: "Love & Relationships Report",
+    yearly: "Yearly Forecast Report",
+    spiritual: "Spiritual Path Report",
+    vedic: "Vedic Astrology Report",
+  };
+
+  const typeName = typeNames[reportType] || "Astrology Report";
+  return userName + "'s " + typeName;
+};
+
+// Helper function to generate auto filename
+const generateAutoFilename = (reportData: any): string => {
+  const cleanName = reportData.userName
+    .replace(/[^a-z0-9]/gi, "_")
+    .toLowerCase();
+  const cleanType = reportData.reportType
+    .replace(/[^a-z0-9]/gi, "_")
+    .toLowerCase();
+  const date = new Date().toISOString().split("T")[0];
+  return cleanName + "_" + cleanType + "_report_" + date + ".pdf";
 };

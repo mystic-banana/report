@@ -27,6 +27,30 @@ export interface BirthChartData {
     longitude: number;
   };
   timezone: string;
+  // Enhanced data for comprehensive natal reports
+  chiron?: PlanetaryPosition;
+  partOfFortune?: PlanetaryPosition;
+  lunarPhase?: {
+    phase: string;
+    illumination: number;
+    description: string;
+  };
+  elementalBalance?: {
+    fire: number;
+    earth: number;
+    air: number;
+    water: number;
+  };
+  modalBalance?: {
+    cardinal: number;
+    fixed: number;
+    mutable: number;
+  };
+  chartPatterns?: ChartPattern[];
+  retrogradeInfo?: {
+    planets: string[];
+    count: number;
+  };
 }
 
 export interface HousePosition {
@@ -42,6 +66,23 @@ export interface AspectData {
   aspect: string;
   orb: number;
   exact: boolean;
+  strength: "strong" | "moderate" | "weak";
+  nature: "harmonious" | "challenging" | "neutral";
+  description?: string;
+}
+
+export interface ChartPattern {
+  name: string;
+  type:
+    | "T-Square"
+    | "Grand Trine"
+    | "Grand Cross"
+    | "Stellium"
+    | "Kite"
+    | "Yod";
+  planets: string[];
+  description: string;
+  significance: "high" | "medium" | "low";
 }
 
 export interface BirthData {
@@ -87,6 +128,66 @@ export const PLANETS = [
   "Pluto",
   "North Node",
   "South Node",
+  "Chiron",
+];
+
+// Elements
+export const ELEMENTS = {
+  Fire: ["Aries", "Leo", "Sagittarius"],
+  Earth: ["Taurus", "Virgo", "Capricorn"],
+  Air: ["Gemini", "Libra", "Aquarius"],
+  Water: ["Cancer", "Scorpio", "Pisces"],
+};
+
+// Modalities
+export const MODALITIES = {
+  Cardinal: ["Aries", "Cancer", "Libra", "Capricorn"],
+  Fixed: ["Taurus", "Leo", "Scorpio", "Aquarius"],
+  Mutable: ["Gemini", "Virgo", "Sagittarius", "Pisces"],
+};
+
+// Lunar Phases
+export const LUNAR_PHASES = [
+  {
+    name: "New Moon",
+    range: [0, 45],
+    description: "New beginnings and fresh starts",
+  },
+  {
+    name: "Waxing Crescent",
+    range: [45, 90],
+    description: "Growth and building momentum",
+  },
+  {
+    name: "First Quarter",
+    range: [90, 135],
+    description: "Action and decision-making",
+  },
+  {
+    name: "Waxing Gibbous",
+    range: [135, 180],
+    description: "Refinement and adjustment",
+  },
+  {
+    name: "Full Moon",
+    range: [180, 225],
+    description: "Culmination and manifestation",
+  },
+  {
+    name: "Waning Gibbous",
+    range: [225, 270],
+    description: "Gratitude and sharing wisdom",
+  },
+  {
+    name: "Last Quarter",
+    range: [270, 315],
+    description: "Release and letting go",
+  },
+  {
+    name: "Waning Crescent",
+    range: [315, 360],
+    description: "Rest and reflection",
+  },
 ];
 
 // Houses
@@ -182,9 +283,11 @@ export function calculateHouses(
 }
 
 /**
- * Calculate aspects between planets
+ * Calculate enhanced aspects between planets
  */
-export function calculateAspects(planets: PlanetaryPosition[]): AspectData[] {
+export function calculateEnhancedAspects(
+  planets: PlanetaryPosition[],
+): AspectData[] {
   const aspects: AspectData[] = [];
 
   for (let i = 0; i < planets.length; i++) {
@@ -198,12 +301,28 @@ export function calculateAspects(planets: PlanetaryPosition[]): AspectData[] {
       Object.entries(ASPECTS).forEach(([aspectName, aspectData]) => {
         const orb = Math.abs(normalizedAngle - aspectData.angle);
         if (orb <= aspectData.orb) {
+          const strength = orb <= 2 ? "strong" : orb <= 5 ? "moderate" : "weak";
+          const nature = ["conjunction", "trine", "sextile"].includes(
+            aspectName,
+          )
+            ? "harmonious"
+            : ["opposition", "square"].includes(aspectName)
+              ? "challenging"
+              : "neutral";
+
           aspects.push({
             planet1: planet1.name,
             planet2: planet2.name,
             aspect: aspectName,
             orb,
             exact: orb <= 1,
+            strength,
+            nature,
+            description: generateAspectDescription(
+              planet1.name,
+              planet2.name,
+              aspectName,
+            ),
           });
         }
       });
@@ -214,14 +333,21 @@ export function calculateAspects(planets: PlanetaryPosition[]): AspectData[] {
 }
 
 /**
- * Mock planetary calculation - in production, use Swiss Ephemeris or similar
+ * Calculate aspects between planets (legacy function for compatibility)
+ */
+export function calculateAspects(planets: PlanetaryPosition[]): AspectData[] {
+  return calculateEnhancedAspects(planets);
+}
+
+/**
+ * Enhanced planetary calculation with additional points
  */
 export function calculatePlanetaryPositions(
   birthData: BirthData,
 ): PlanetaryPosition[] {
   const planets: PlanetaryPosition[] = [];
 
-  // Mock data - in production, calculate actual positions using ephemeris
+  // Enhanced mock data - in production, use Swiss Ephemeris or similar
   const mockPositions = {
     Sun: 120.5,
     Moon: 45.2,
@@ -235,17 +361,31 @@ export function calculatePlanetaryPositions(
     Pluto: 267.9,
     "North Node": 156.3,
     "South Node": 336.3,
+    Chiron: 78.9,
+  };
+
+  // Add retrograde status (mock)
+  const retrogradeStatus = {
+    Mercury: Math.random() > 0.7,
+    Venus: Math.random() > 0.8,
+    Mars: Math.random() > 0.8,
+    Jupiter: Math.random() > 0.9,
+    Saturn: Math.random() > 0.9,
+    Uranus: Math.random() > 0.95,
+    Neptune: Math.random() > 0.95,
+    Pluto: Math.random() > 0.95,
   };
 
   Object.entries(mockPositions).forEach(([planetName, longitude]) => {
     const signData = longitudeToSign(longitude);
+    const isRetrograde = retrogradeStatus[planetName] || false;
 
     planets.push({
       name: planetName,
       longitude,
       latitude: 0, // Simplified
       distance: 1, // Simplified
-      speed: 1, // Simplified
+      speed: isRetrograde ? -0.5 : 1, // Negative speed indicates retrograde
       sign: signData.sign,
       degree: signData.degree,
       minute: signData.minute,
@@ -257,7 +397,7 @@ export function calculatePlanetaryPositions(
 }
 
 /**
- * Calculate complete birth chart
+ * Calculate complete enhanced birth chart
  */
 export function calculateBirthChart(birthData: BirthData): BirthChartData {
   const planets = calculatePlanetaryPositions(birthData);
@@ -271,7 +411,7 @@ export function calculateBirthChart(birthData: BirthData): BirthChartData {
     midheaven,
     birthData.location.latitude,
   );
-  const aspects = calculateAspects(planets);
+  const aspects = calculateEnhancedAspects(planets);
 
   // Assign houses to planets
   planets.forEach((planet) => {
@@ -286,6 +426,15 @@ export function calculateBirthChart(birthData: BirthData): BirthChartData {
     }
   });
 
+  // Calculate additional points
+  const chiron = planets.find((p) => p.name === "Chiron");
+  const partOfFortune = calculatePartOfFortune(planets, ascendant);
+  const lunarPhase = calculateLunarPhase(planets);
+  const elementalBalance = calculateElementalBalance(planets);
+  const modalBalance = calculateModalBalance(planets);
+  const chartPatterns = detectChartPatterns(planets, aspects);
+  const retrogradeInfo = calculateRetrogradeInfo(planets);
+
   return {
     planets,
     houses,
@@ -298,6 +447,13 @@ export function calculateBirthChart(birthData: BirthData): BirthChartData {
       longitude: birthData.location.longitude,
     },
     timezone: birthData.location.timezone,
+    chiron,
+    partOfFortune,
+    lunarPhase,
+    elementalBalance,
+    modalBalance,
+    chartPatterns,
+    retrogradeInfo,
   };
 }
 
@@ -427,4 +583,193 @@ function getSignCompatibility(sign1: string, sign2: string): number {
   };
 
   return compatibilityMatrix[sign1]?.[sign2] || 0;
+}
+
+/**
+ * Calculate Part of Fortune
+ */
+export function calculatePartOfFortune(
+  planets: PlanetaryPosition[],
+  ascendant: number,
+): PlanetaryPosition {
+  const sun = planets.find((p) => p.name === "Sun");
+  const moon = planets.find((p) => p.name === "Moon");
+
+  if (!sun || !moon) {
+    // Fallback position
+    const longitude = (ascendant + 90) % 360;
+    const signData = longitudeToSign(longitude);
+    return {
+      name: "Part of Fortune",
+      longitude,
+      latitude: 0,
+      distance: 1,
+      speed: 0,
+      sign: signData.sign,
+      degree: signData.degree,
+      minute: signData.minute,
+      second: signData.second,
+    };
+  }
+
+  // Formula: Ascendant + Moon - Sun (for day births)
+  const longitude = (ascendant + moon.longitude - sun.longitude + 360) % 360;
+  const signData = longitudeToSign(longitude);
+
+  return {
+    name: "Part of Fortune",
+    longitude,
+    latitude: 0,
+    distance: 1,
+    speed: 0,
+    sign: signData.sign,
+    degree: signData.degree,
+    minute: signData.minute,
+    second: signData.second,
+  };
+}
+
+/**
+ * Calculate lunar phase at birth
+ */
+export function calculateLunarPhase(planets: PlanetaryPosition[]) {
+  const sun = planets.find((p) => p.name === "Sun");
+  const moon = planets.find((p) => p.name === "Moon");
+
+  if (!sun || !moon) {
+    return {
+      phase: "New Moon",
+      illumination: 0,
+      description: "New beginnings and fresh starts",
+    };
+  }
+
+  const angle = Math.abs(moon.longitude - sun.longitude);
+  const normalizedAngle = angle > 180 ? 360 - angle : angle;
+
+  const phase =
+    LUNAR_PHASES.find(
+      (p) => normalizedAngle >= p.range[0] && normalizedAngle < p.range[1],
+    ) || LUNAR_PHASES[0];
+
+  return {
+    phase: phase.name,
+    illumination: Math.round((normalizedAngle / 180) * 100),
+    description: phase.description,
+  };
+}
+
+/**
+ * Calculate elemental balance
+ */
+export function calculateElementalBalance(planets: PlanetaryPosition[]) {
+  const balance = { fire: 0, earth: 0, air: 0, water: 0 };
+
+  planets.forEach((planet) => {
+    if (ELEMENTS.Fire.includes(planet.sign)) balance.fire++;
+    else if (ELEMENTS.Earth.includes(planet.sign)) balance.earth++;
+    else if (ELEMENTS.Air.includes(planet.sign)) balance.air++;
+    else if (ELEMENTS.Water.includes(planet.sign)) balance.water++;
+  });
+
+  return balance;
+}
+
+/**
+ * Calculate modal balance
+ */
+export function calculateModalBalance(planets: PlanetaryPosition[]) {
+  const balance = { cardinal: 0, fixed: 0, mutable: 0 };
+
+  planets.forEach((planet) => {
+    if (MODALITIES.Cardinal.includes(planet.sign)) balance.cardinal++;
+    else if (MODALITIES.Fixed.includes(planet.sign)) balance.fixed++;
+    else if (MODALITIES.Mutable.includes(planet.sign)) balance.mutable++;
+  });
+
+  return balance;
+}
+
+/**
+ * Detect chart patterns
+ */
+export function detectChartPatterns(
+  planets: PlanetaryPosition[],
+  aspects: AspectData[],
+): ChartPattern[] {
+  const patterns: ChartPattern[] = [];
+
+  // Detect Stellium (3+ planets in same sign or house)
+  const signGroups: { [key: string]: string[] } = {};
+  planets.forEach((planet) => {
+    if (!signGroups[planet.sign]) signGroups[planet.sign] = [];
+    signGroups[planet.sign].push(planet.name);
+  });
+
+  Object.entries(signGroups).forEach(([sign, planetNames]) => {
+    if (planetNames.length >= 3) {
+      patterns.push({
+        name: `${sign} Stellium`,
+        type: "Stellium",
+        planets: planetNames,
+        description: `A concentration of energy in ${sign}, emphasizing its themes`,
+        significance: "high",
+      });
+    }
+  });
+
+  // Detect Grand Trine (simplified)
+  const trines = aspects.filter((a) => a.aspect === "trine");
+  if (trines.length >= 3) {
+    const trinePlanets = Array.from(
+      new Set([...trines.flatMap((t) => [t.planet1, t.planet2])]),
+    );
+
+    if (trinePlanets.length >= 3) {
+      patterns.push({
+        name: "Grand Trine",
+        type: "Grand Trine",
+        planets: trinePlanets.slice(0, 3),
+        description:
+          "A harmonious triangle of energy promoting natural talents",
+        significance: "high",
+      });
+    }
+  }
+
+  return patterns;
+}
+
+/**
+ * Calculate retrograde information
+ */
+export function calculateRetrogradeInfo(planets: PlanetaryPosition[]) {
+  const retrogradePlanets = planets
+    .filter((p) => p.speed < 0)
+    .map((p) => p.name);
+
+  return {
+    planets: retrogradePlanets,
+    count: retrogradePlanets.length,
+  };
+}
+
+/**
+ * Generate aspect description
+ */
+function generateAspectDescription(
+  planet1: string,
+  planet2: string,
+  aspect: string,
+): string {
+  const descriptions = {
+    conjunction: `${planet1} and ${planet2} blend their energies`,
+    opposition: `${planet1} and ${planet2} create dynamic tension`,
+    trine: `${planet1} and ${planet2} flow harmoniously together`,
+    square: `${planet1} and ${planet2} challenge each other to grow`,
+    sextile: `${planet1} and ${planet2} support each other's expression`,
+    quincunx: `${planet1} and ${planet2} require adjustment and adaptation`,
+  };
+
+  return descriptions[aspect] || `${planet1} ${aspect} ${planet2}`;
 }

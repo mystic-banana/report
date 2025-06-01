@@ -40,21 +40,44 @@ const AstrologyDashboard: React.FC = () => {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      fetchBirthCharts(user.id);
-      fetchCompatibilityReports(user.id);
-      fetchReports(user.id);
-
-      // Get user's zodiac sign from their first birth chart
-      if (birthCharts.length > 0) {
-        const sign = getZodiacSign(birthCharts[0].birth_date);
-        setUserZodiacSign(sign);
-
-        // Fetch today's horoscope
-        const today = new Date().toISOString().split("T")[0];
-        fetchDailyHoroscope(sign, today).then(setTodayHoroscope);
-      }
+      // Load data in parallel for better performance
+      const loadData = async () => {
+        try {
+          await Promise.all([
+            fetchBirthCharts(user.id),
+            fetchCompatibilityReports(user.id),
+            fetchReports(user.id),
+          ]);
+        } catch (error) {
+          console.error("Error loading dashboard data:", error);
+        }
+      };
+      loadData();
     }
-  }, [isAuthenticated, user, birthCharts.length]);
+  }, [isAuthenticated, user]);
+
+  // Separate effect for horoscope to avoid blocking main data load
+  useEffect(() => {
+    if (birthCharts.length > 0 && !userZodiacSign) {
+      const sign = getZodiacSign(birthCharts[0].birth_date);
+      setUserZodiacSign(sign);
+
+      // Fetch today's horoscope asynchronously
+      const today = new Date().toISOString().split("T")[0];
+      fetchDailyHoroscope(sign, today)
+        .then(setTodayHoroscope)
+        .catch((error) => {
+          console.warn("Failed to load horoscope:", error);
+          // Set a fallback horoscope to prevent loading state
+          setTodayHoroscope({
+            content: `Today brings positive energy for ${sign}. Trust your instincts and embrace new opportunities.`,
+            love_score: 75,
+            career_score: 80,
+            health_score: 85,
+          });
+        });
+    }
+  }, [birthCharts.length, userZodiacSign]);
 
   const zodiacSymbols: { [key: string]: string } = {
     Aries: "♈",
@@ -125,27 +148,50 @@ const AstrologyDashboard: React.FC = () => {
           </Link>
         </div>
 
-        {/* Quick Stats */}
+        {/* Quick Stats - Now Clickable */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-dark-800/50 rounded-xl p-4 text-center">
-            <Star className="w-6 h-6 text-purple-400 mx-auto mb-2" />
-            <p className="text-2xl font-bold text-white">
-              {birthCharts.length}
-            </p>
-            <p className="text-gray-400 text-sm">Birth Charts</p>
-          </div>
-          <div className="bg-dark-800/50 rounded-xl p-4 text-center">
-            <Users className="w-6 h-6 text-pink-400 mx-auto mb-2" />
-            <p className="text-2xl font-bold text-white">
-              {compatibilityReports.length}
-            </p>
-            <p className="text-gray-400 text-sm">Compatibility</p>
-          </div>
-          <div className="bg-dark-800/50 rounded-xl p-4 text-center">
-            <BookOpen className="w-6 h-6 text-amber-400 mx-auto mb-2" />
-            <p className="text-2xl font-bold text-white">{reports.length}</p>
-            <p className="text-gray-400 text-sm">Reports</p>
-          </div>
+          <Link to="/astrology/birth-chart" className="block">
+            <div className="bg-dark-800/50 rounded-xl p-4 text-center hover:bg-dark-800/70 transition-all duration-300 cursor-pointer group">
+              <Star className="w-6 h-6 text-purple-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+              <p className="text-2xl font-bold text-white group-hover:text-purple-300">
+                {birthCharts.length}
+              </p>
+              <p className="text-gray-400 text-sm group-hover:text-gray-300">
+                Birth Charts
+              </p>
+              <p className="text-xs text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1">
+                Click to create new
+              </p>
+            </div>
+          </Link>
+          <Link to="/astrology/compatibility" className="block">
+            <div className="bg-dark-800/50 rounded-xl p-4 text-center hover:bg-dark-800/70 transition-all duration-300 cursor-pointer group">
+              <Users className="w-6 h-6 text-pink-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+              <p className="text-2xl font-bold text-white group-hover:text-pink-300">
+                {compatibilityReports.length}
+              </p>
+              <p className="text-gray-400 text-sm group-hover:text-gray-300">
+                Compatibility
+              </p>
+              <p className="text-xs text-pink-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1">
+                Click to analyze
+              </p>
+            </div>
+          </Link>
+          <Link to="/astrology/reports" className="block">
+            <div className="bg-dark-800/50 rounded-xl p-4 text-center hover:bg-dark-800/70 transition-all duration-300 cursor-pointer group">
+              <BookOpen className="w-6 h-6 text-amber-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+              <p className="text-2xl font-bold text-white group-hover:text-amber-300">
+                {reports.length}
+              </p>
+              <p className="text-gray-400 text-sm group-hover:text-gray-300">
+                Reports
+              </p>
+              <p className="text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1">
+                Click to view all
+              </p>
+            </div>
+          </Link>
           <div className="bg-dark-800/50 rounded-xl p-4 text-center">
             {userZodiacSign ? (
               <>
@@ -156,12 +202,18 @@ const AstrologyDashboard: React.FC = () => {
                 <p className="text-gray-400 text-sm">Your Sign</p>
               </>
             ) : (
-              <>
+              <Link
+                to="/astrology/birth-chart"
+                className="block hover:opacity-80 transition-opacity"
+              >
                 <Calendar className="w-6 h-6 text-teal-400 mx-auto mb-2" />
                 <p className="text-gray-400 text-sm">
                   Create chart to see sign
                 </p>
-              </>
+                <p className="text-xs text-teal-400 mt-1">
+                  Click to get started
+                </p>
+              </Link>
             )}
           </div>
         </div>
@@ -300,36 +352,64 @@ const AstrologyDashboard: React.FC = () => {
       {/* Compatibility Chart Component */}
       <CompatibilityChart maxItems={2} />
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Enhanced with more features */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link to="/astrology/birth-chart">
-          <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 rounded-xl p-4 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 text-center">
-            <Star className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+          <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 rounded-xl p-4 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 text-center group">
+            <Star className="w-8 h-8 text-purple-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
             <h4 className="text-white font-medium mb-1">Birth Chart</h4>
             <p className="text-gray-400 text-sm">Generate natal chart</p>
           </div>
         </Link>
         <Link to="/astrology/compatibility">
-          <div className="bg-gradient-to-br from-pink-900/30 to-rose-900/30 rounded-xl p-4 border border-pink-500/20 hover:border-pink-500/40 transition-all duration-300 text-center">
-            <Users className="w-8 h-8 text-pink-400 mx-auto mb-2" />
+          <div className="bg-gradient-to-br from-pink-900/30 to-rose-900/30 rounded-xl p-4 border border-pink-500/20 hover:border-pink-500/40 transition-all duration-300 text-center group">
+            <Users className="w-8 h-8 text-pink-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
             <h4 className="text-white font-medium mb-1">Compatibility</h4>
             <p className="text-gray-400 text-sm">Relationship analysis</p>
           </div>
         </Link>
         <Link to="/astrology/horoscopes">
-          <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 rounded-xl p-4 border border-amber-500/20 hover:border-amber-500/40 transition-all duration-300 text-center">
-            <Calendar className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+          <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 rounded-xl p-4 border border-amber-500/20 hover:border-amber-500/40 transition-all duration-300 text-center group">
+            <Calendar className="w-8 h-8 text-amber-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
             <h4 className="text-white font-medium mb-1">Horoscopes</h4>
             <p className="text-gray-400 text-sm">Daily guidance</p>
           </div>
         </Link>
+        <Link to="/astrology/transits">
+          <div className="bg-gradient-to-br from-teal-900/30 to-cyan-900/30 rounded-xl p-4 border border-teal-500/20 hover:border-teal-500/40 transition-all duration-300 text-center group">
+            <TrendingUp className="w-8 h-8 text-teal-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+            <h4 className="text-white font-medium mb-1">Transit Forecasts</h4>
+            <p className="text-gray-400 text-sm">Future predictions</p>
+          </div>
+        </Link>
         <Link to="/astrology/reports">
-          <div className="bg-gradient-to-br from-teal-900/30 to-cyan-900/30 rounded-xl p-4 border border-teal-500/20 hover:border-teal-500/40 transition-all duration-300 text-center">
-            <BookOpen className="w-8 h-8 text-teal-400 mx-auto mb-2" />
-            <h4 className="text-white font-medium mb-1">Reports</h4>
+          <div className="bg-gradient-to-br from-indigo-900/30 to-blue-900/30 rounded-xl p-4 border border-indigo-500/20 hover:border-indigo-500/40 transition-all duration-300 text-center group">
+            <BookOpen className="w-8 h-8 text-indigo-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+            <h4 className="text-white font-medium mb-1">
+              Professional Reports
+            </h4>
             <p className="text-gray-400 text-sm">Detailed analysis</p>
           </div>
         </Link>
+        <Link to="/astrology/vedic">
+          <div className="bg-gradient-to-br from-orange-900/30 to-red-900/30 rounded-xl p-4 border border-orange-500/20 hover:border-orange-500/40 transition-all duration-300 text-center group">
+            <Sparkles className="w-8 h-8 text-orange-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+            <h4 className="text-white font-medium mb-1">Vedic Astrology</h4>
+            <p className="text-gray-400 text-sm">Ancient wisdom</p>
+          </div>
+        </Link>
+        <Link to="/plans">
+          <div className="bg-gradient-to-br from-amber-900/30 to-yellow-900/30 rounded-xl p-4 border border-amber-500/20 hover:border-amber-500/40 transition-all duration-300 text-center group">
+            <Sparkles className="w-8 h-8 text-amber-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+            <h4 className="text-white font-medium mb-1">Premium Features</h4>
+            <p className="text-gray-400 text-sm">Unlock full potential</p>
+          </div>
+        </Link>
+        <div className="bg-gradient-to-br from-gray-900/30 to-slate-900/30 rounded-xl p-4 border border-gray-500/20 text-center">
+          <Moon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+          <h4 className="text-white font-medium mb-1">More Coming Soon</h4>
+          <p className="text-gray-400 text-sm">New features in development</p>
+        </div>
       </div>
     </div>
   );

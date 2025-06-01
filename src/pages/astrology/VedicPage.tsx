@@ -48,7 +48,7 @@ const VedicPage: React.FC = () => {
     },
     {
       icon: Sun,
-      title: "Karma & Dharma",
+      title: "Spiritual Path",
       description: "Explore your soul's purpose and karmic lessons",
       color: "from-yellow-500 to-orange-600",
     },
@@ -74,7 +74,7 @@ const VedicPage: React.FC = () => {
   ];
 
   return (
-    <PageLayout title="Vedic Astrology - Karma & Destiny - Mystic Banana">
+    <PageLayout title="Vedic Astrology - Ancient Wisdom - Mystic Banana">
       <div className="bg-gradient-to-br from-dark-900 via-dark-850 to-dark-800 min-h-screen">
         <div className="container mx-auto px-4 py-8">
           {/* Header */}
@@ -91,7 +91,7 @@ const VedicPage: React.FC = () => {
                   Vedic Astrology
                 </h1>
                 <p className="text-gray-400">
-                  Ancient wisdom for understanding karma and destiny
+                  Ancient Indian wisdom for understanding your soul's journey
                 </p>
               </div>
             </div>
@@ -151,8 +151,16 @@ const VedicPage: React.FC = () => {
                   <Button
                     className="bg-gradient-to-r from-orange-600 to-red-600"
                     disabled={!selectedChart}
+                    onClick={() => {
+                      if (selectedChart) {
+                        // Navigate to create Vedic report
+                        navigate(
+                          `/astrology/reports?chartId=${selectedChart}&type=vedic`,
+                        );
+                      }
+                    }}
                   >
-                    Generate Vedic Analysis
+                    Generate Vedic Report
                   </Button>
                 </div>
               )}
@@ -232,26 +240,55 @@ const VedicPage: React.FC = () => {
             </div>
           )}
 
-          {/* Coming Soon Notice */}
+          {/* Premium Features Notice */}
           <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 rounded-2xl p-8 border border-purple-500/20 text-center">
             <Sparkles className="w-16 h-16 text-purple-400 mx-auto mb-4" />
             <h3 className="text-2xl font-serif font-bold text-white mb-4">
-              Advanced Vedic Features Coming Soon
+              Premium Vedic Astrology Features
             </h3>
             <p className="text-gray-300 mb-6 max-w-2xl mx-auto">
-              We're working on bringing you comprehensive Vedic astrology
-              features including detailed Nakshatra analysis, Dasha
-              calculations, and personalized karmic insights.
+              Unlock comprehensive Vedic astrology features including detailed
+              Nakshatra analysis, Dasha calculations, Yogas & Doshas, and
+              personalized remedial measures with our premium plans.
             </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+              <div className="bg-dark-800/50 rounded-xl p-4">
+                <h4 className="text-orange-400 font-semibold mb-2">
+                  Comprehensive Analysis
+                </h4>
+                <p className="text-gray-400 text-sm">
+                  Detailed Graha and Bhava interpretations
+                </p>
+              </div>
+              <div className="bg-dark-800/50 rounded-xl p-4">
+                <h4 className="text-orange-400 font-semibold mb-2">
+                  Dasha Predictions
+                </h4>
+                <p className="text-gray-400 text-sm">
+                  Vimshottari Dasha timing and effects
+                </p>
+              </div>
+              <div className="bg-dark-800/50 rounded-xl p-4">
+                <h4 className="text-orange-400 font-semibold mb-2">
+                  Remedial Measures
+                </h4>
+                <p className="text-gray-400 text-sm">
+                  Personalized mantras and spiritual practices
+                </p>
+              </div>
+            </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
-                onClick={() => navigate("/astrology/birth-chart")}
+                onClick={() => navigate("/plans")}
                 className="bg-gradient-to-r from-purple-600 to-indigo-600"
               >
-                Create Birth Chart
+                Upgrade to Premium
               </Button>
-              <Button variant="outline" onClick={() => navigate("/astrology")}>
-                Explore Western Astrology
+              <Button
+                onClick={() => navigate("/astrology/birth-chart")}
+                variant="outline"
+              >
+                Create Birth Chart
               </Button>
             </div>
           </div>

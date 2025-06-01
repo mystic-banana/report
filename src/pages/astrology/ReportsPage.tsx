@@ -10,6 +10,13 @@ import {
   Eye,
   FileText,
   Crown,
+  Sparkles,
+  Calendar,
+  Heart,
+  Briefcase,
+  Zap,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import PageLayout from "../../components/layout/PageLayout";
 import { useAstrologyStore } from "../../store/astrologyStore";
@@ -39,44 +46,120 @@ const ReportsPage: React.FC = () => {
     {
       id: "natal",
       name: "Complete Natal Report",
-      description: "Comprehensive analysis of your birth chart",
+      description:
+        "Comprehensive analysis of your birth chart with planetary positions, aspects, and life insights",
       premium: false,
       icon: Star,
+      features: [
+        "Birth chart essentials",
+        "Personality analysis",
+        "Strengths & challenges",
+        "Basic recommendations",
+      ],
+      estimatedPages: "8-12 pages",
+      color: "from-purple-600 to-indigo-600",
+    },
+    {
+      id: "natal-premium",
+      name: "Premium Natal Report",
+      description:
+        "Enhanced natal analysis with detailed interpretations, aspect table, and elemental balance",
+      premium: true,
+      icon: Crown,
+      features: [
+        "Everything in basic",
+        "Detailed aspect analysis",
+        "Elemental & modal balance",
+        "Retrograde planets",
+        "Lunar phase analysis",
+        "Premium guidance",
+      ],
+      estimatedPages: "15-20 pages",
+      color: "from-amber-600 to-orange-600",
     },
     {
       id: "personality",
       name: "Personality Profile",
-      description: "Deep dive into your character traits and motivations",
+      description:
+        "Deep dive into your character traits, motivations, and behavioral patterns",
       premium: false,
       icon: FileText,
+      features: [
+        "Core personality traits",
+        "Emotional patterns",
+        "Communication style",
+        "Relationship approach",
+      ],
+      estimatedPages: "6-8 pages",
+      color: "from-blue-600 to-cyan-600",
     },
     {
       id: "career",
       name: "Career & Life Purpose",
-      description: "Discover your professional path and calling",
+      description:
+        "Discover your professional path, talents, and life calling through astrological insights",
       premium: true,
-      icon: Crown,
+      icon: Briefcase,
+      features: [
+        "Career strengths",
+        "Professional challenges",
+        "Ideal work environments",
+        "Leadership style",
+        "Financial patterns",
+      ],
+      estimatedPages: "10-12 pages",
+      color: "from-green-600 to-emerald-600",
     },
     {
       id: "relationships",
       name: "Love & Relationships",
-      description: "Understanding your romantic patterns and compatibility",
+      description:
+        "Understanding your romantic patterns, compatibility factors, and relationship dynamics",
       premium: true,
-      icon: Crown,
+      icon: Heart,
+      features: [
+        "Love language",
+        "Relationship patterns",
+        "Compatibility insights",
+        "Communication in love",
+        "Emotional needs",
+      ],
+      estimatedPages: "8-10 pages",
+      color: "from-pink-600 to-rose-600",
     },
     {
       id: "yearly",
       name: "Yearly Forecast",
-      description: "12-month ahead predictions and guidance",
+      description:
+        "12-month ahead predictions and guidance based on planetary transits",
       premium: true,
-      icon: Crown,
+      icon: Calendar,
+      features: [
+        "Monthly highlights",
+        "Key opportunities",
+        "Challenges to watch",
+        "Best timing for decisions",
+        "Personal growth themes",
+      ],
+      estimatedPages: "12-15 pages",
+      color: "from-violet-600 to-purple-600",
     },
     {
       id: "spiritual",
       name: "Spiritual Path Report",
-      description: "Your soul's journey and spiritual lessons",
+      description:
+        "Your soul's journey, spiritual lessons, and path to higher consciousness",
       premium: true,
-      icon: Crown,
+      icon: Sparkles,
+      features: [
+        "Soul purpose",
+        "Karmic lessons",
+        "Spiritual gifts",
+        "Meditation guidance",
+        "Higher consciousness path",
+      ],
+      estimatedPages: "10-14 pages",
+      color: "from-indigo-600 to-blue-600",
     },
   ];
 
@@ -244,47 +327,154 @@ const ReportsPage: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-300 mb-4">
                     Choose Report Type
                   </label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {reportTypes.map((type) => {
                       const Icon = type.icon;
+                      const isSelected = selectedReportType === type.id;
                       return (
-                        <button
+                        <motion.button
                           key={type.id}
                           onClick={() => setSelectedReportType(type.id)}
-                          className={`p-4 rounded-xl border transition-all duration-200 text-left ${
-                            selectedReportType === type.id
-                              ? "bg-gradient-to-br from-indigo-600 to-purple-600 border-indigo-500 text-white"
-                              : "bg-dark-700 border-dark-600 text-gray-300 hover:border-indigo-500 hover:text-white"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={`p-6 rounded-2xl border-2 transition-all duration-300 text-left relative overflow-hidden ${
+                            isSelected
+                              ? `bg-gradient-to-br ${type.color} border-transparent text-white shadow-2xl`
+                              : "bg-dark-700 border-dark-600 text-gray-300 hover:border-indigo-500 hover:bg-dark-650"
                           }`}
                         >
-                          <div className="flex items-center justify-between mb-2">
-                            <Icon className="w-5 h-5" />
-                            {type.premium && (
-                              <span className="text-xs px-2 py-1 bg-amber-600 text-white rounded-full">
-                                Premium
-                              </span>
+                          {/* Background Pattern */}
+                          <div className="absolute inset-0 opacity-10">
+                            <div className="absolute top-4 right-4 w-20 h-20 rounded-full bg-white/20"></div>
+                            <div className="absolute bottom-4 left-4 w-12 h-12 rounded-full bg-white/10"></div>
+                          </div>
+
+                          <div className="relative z-10">
+                            <div className="flex items-center justify-between mb-4">
+                              <div
+                                className={`p-3 rounded-xl ${
+                                  isSelected
+                                    ? "bg-white/20"
+                                    : "bg-indigo-600/20"
+                                }`}
+                              >
+                                <Icon
+                                  className={`w-6 h-6 ${
+                                    isSelected
+                                      ? "text-white"
+                                      : "text-indigo-400"
+                                  }`}
+                                />
+                              </div>
+                              {type.premium && (
+                                <div className="flex items-center space-x-2">
+                                  <Crown className="w-4 h-4 text-amber-400" />
+                                  <span className="text-xs px-3 py-1 bg-amber-600 text-white rounded-full font-medium">
+                                    Premium
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            <h4
+                              className={`text-lg font-bold mb-2 ${
+                                isSelected ? "text-white" : "text-white"
+                              }`}
+                            >
+                              {type.name}
+                            </h4>
+
+                            <p
+                              className={`text-sm mb-4 leading-relaxed ${
+                                isSelected ? "text-white/90" : "text-gray-400"
+                              }`}
+                            >
+                              {type.description}
+                            </p>
+
+                            <div className="space-y-3">
+                              <div
+                                className={`text-xs font-medium ${
+                                  isSelected ? "text-white/80" : "text-gray-500"
+                                }`}
+                              >
+                                {type.estimatedPages}
+                              </div>
+
+                              <div className="space-y-1">
+                                {type.features
+                                  .slice(0, 3)
+                                  .map((feature, index) => (
+                                    <div
+                                      key={index}
+                                      className="flex items-center space-x-2"
+                                    >
+                                      <CheckCircle
+                                        className={`w-3 h-3 ${
+                                          isSelected
+                                            ? "text-white/70"
+                                            : "text-green-400"
+                                        }`}
+                                      />
+                                      <span
+                                        className={`text-xs ${
+                                          isSelected
+                                            ? "text-white/80"
+                                            : "text-gray-400"
+                                        }`}
+                                      >
+                                        {feature}
+                                      </span>
+                                    </div>
+                                  ))}
+                                {type.features.length > 3 && (
+                                  <div
+                                    className={`text-xs ${
+                                      isSelected
+                                        ? "text-white/60"
+                                        : "text-gray-500"
+                                    }`}
+                                  >
+                                    +{type.features.length - 3} more features
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {isSelected && (
+                              <div className="absolute top-4 right-4">
+                                <CheckCircle className="w-6 h-6 text-white" />
+                              </div>
                             )}
                           </div>
-                          <h4 className="font-medium mb-1">{type.name}</h4>
-                          <p className="text-sm opacity-75">
-                            {type.description}
-                          </p>
-                        </button>
+                        </motion.button>
                       );
                     })}
                   </div>
                 </div>
 
-                <Button
-                  onClick={handleCreateReport}
-                  loading={isCreating}
-                  disabled={
-                    !selectedChart || !selectedReportType || !reportTitle.trim()
-                  }
-                  className="bg-gradient-to-r from-indigo-600 to-purple-600"
-                >
-                  Generate Report
-                </Button>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-400">
+                    {selectedReportType && (
+                      <div className="flex items-center space-x-2">
+                        <Zap className="w-4 h-4 text-amber-400" />
+                        <span>Estimated generation time: 30-60 seconds</span>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    onClick={handleCreateReport}
+                    loading={isCreating}
+                    disabled={
+                      !selectedChart ||
+                      !selectedReportType ||
+                      !reportTitle.trim()
+                    }
+                    className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-3 text-lg font-semibold"
+                  >
+                    {isCreating ? "Generating Report..." : "Generate Report"}
+                  </Button>
+                </div>
               </div>
 
               {/* Existing Reports */}
