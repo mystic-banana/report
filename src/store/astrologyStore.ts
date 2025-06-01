@@ -151,6 +151,7 @@ interface AstrologyState {
   ) => Promise<AstrologyReport | null>;
   fetchReports: (userId: string) => Promise<void>;
   exportReportToPDF: (reportId: string) => Promise<string | null>;
+  deleteReport: (reportId: string) => Promise<void>;
 
   setCurrentChart: (chart: BirthChart | null) => void;
   clearError: () => void;
@@ -793,7 +794,7 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
 
       // Generate AI-powered Vedic report
       const response = await supabase.functions.invoke(
-        "generate-vedic-report",
+        "supabase-functions-generate-vedic-report",
         {
           body: {
             birthData: {
@@ -963,6 +964,25 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
 
   setCurrentChart: (chart: BirthChart | null) => {
     set({ currentChart: chart });
+  },
+
+  deleteReport: async (reportId: string) => {
+    set({ loading: true, error: null });
+    try {
+      const { error } = await supabase
+        .from("astrology_reports")
+        .delete()
+        .eq("id", reportId);
+
+      if (error) throw error;
+
+      set((state) => ({
+        reports: state.reports.filter((report) => report.id !== reportId),
+        loading: false,
+      }));
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+    }
   },
 
   clearError: () => {

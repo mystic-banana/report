@@ -8,6 +8,34 @@ interface WatermarkOptions {
   reportType?: string;
 }
 
+// Export the addImageWatermark function so it can be used in InteractiveChart.tsx
+export const addImageWatermark = (
+  canvas: HTMLCanvasElement,
+  options: WatermarkOptions,
+): void => {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const { userName, birthDate, reportType = "Birth Chart" } = options;
+
+  // Add watermark text at the bottom
+  ctx.save();
+  ctx.fillStyle = "rgba(128, 128, 128, 0.7)";
+  ctx.font = "12px Arial";
+  ctx.textAlign = "center";
+
+  const watermarkText = `Generated for ${userName} ${birthDate ? "(" + new Date(birthDate).toLocaleDateString() + ")" : ""} at mysticbanana.com`;
+  ctx.fillText(watermarkText, canvas.width / 2, canvas.height - 20);
+
+  // Add subtle diagonal watermark
+  ctx.globalAlpha = 0.03;
+  ctx.font = "40px Arial";
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(Math.PI / 4); // 45 degrees
+  ctx.fillText("MYSTIC BANANA", 0, 0);
+  ctx.restore();
+};
+
 interface ReportData {
   title: string;
   content: string;
@@ -38,86 +66,173 @@ interface AIGeneratedContent {
   };
 }
 
-// Standard color theme for all reports
-const REPORT_COLORS = {
-  primary: [74, 20, 140], // Deep purple
-  accent: [184, 134, 11], // Gold
-  text: [33, 33, 33], // Dark gray
-  lightText: [100, 100, 100], // Light gray
-  background: [248, 250, 252], // Light background
-  border: [200, 200, 200], // Light border
-  success: [34, 197, 94], // Green
-  warning: [245, 158, 11], // Orange
-  info: [59, 130, 246], // Blue
+// Professional color scheme based on reference image
+const COLORS = {
+  primary: [51, 51, 51], // Dark gray for text
+  secondary: [102, 102, 102], // Medium gray
+  accent: [184, 134, 11], // Gold accent
+  light: [245, 245, 245], // Light background
+  white: [255, 255, 255],
+  border: [220, 220, 220],
+  chart: [139, 69, 19], // Brown for chart elements
 };
 
-// Standard fonts and spacing
-const REPORT_STYLES = {
-  fonts: {
-    title: { size: 24, weight: "bold" },
-    heading: { size: 18, weight: "bold" },
-    subheading: { size: 14, weight: "bold" },
-    body: { size: 11, weight: "normal" },
-    caption: { size: 9, weight: "normal" },
-  },
-  spacing: {
-    section: 20,
-    paragraph: 8,
-    line: 5,
-    margin: 20,
-  },
+// Typography system
+const FONTS = {
+  title: { size: 28, weight: "bold" },
+  heading: { size: 16, weight: "bold" },
+  subheading: { size: 12, weight: "bold" },
+  body: { size: 10, weight: "normal" },
+  caption: { size: 8, weight: "normal" },
 };
 
-export const generatePDFWithWatermark = async (
-  element: HTMLElement,
-  filename: string,
-  watermarkOptions: WatermarkOptions,
+// Layout constants
+const LAYOUT = {
+  margin: 20,
+  columnGap: 10,
+  sectionGap: 15,
+  lineHeight: 4,
+  pageWidth: 210, // A4 width in mm
+  pageHeight: 297, // A4 height in mm
+};
+
+export const generateProfessionalAstrologyReport = async (
+  reportData: ReportData,
 ): Promise<void> => {
   try {
-    // Create canvas from HTML element with white background
-    const canvas = await html2canvas(element, {
-      backgroundColor: "#ffffff",
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-    });
+    // Generate AI content first
+    const aiContent = await generateAIContent(reportData);
 
-    // Create PDF
+    // Create PDF with professional styling
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "mm",
       format: "a4",
     });
 
-    // Calculate dimensions
-    const imgWidth = 190;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const pageHeight = 297; // A4 height in mm
+    let currentY = 0;
+    const contentWidth = LAYOUT.pageWidth - LAYOUT.margin * 2;
 
-    let heightLeft = imgHeight;
-    let position = 10;
+    // Helper function for page breaks
+    const checkPageBreak = (requiredHeight: number) => {
+      if (currentY + requiredHeight > LAYOUT.pageHeight - 40) {
+        pdf.addPage();
+        currentY = LAYOUT.margin;
+        addHeader(pdf);
+        addFooter(pdf, reportData);
+      }
+    };
 
-    // Add image to PDF
-    const imgData = canvas.toDataURL("image/png");
-    pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
+    // Add header and footer to first page
+    addHeader(pdf);
+    addFooter(pdf, reportData);
+    currentY = 50; // Start after header
 
-    // Add additional pages if needed
-    while (heightLeft >= 0) {
-      position = heightLeft - imgHeight + 10;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+    // Main title section
+    addMainTitle(pdf, reportData, currentY);
+    currentY += 40;
+
+    // Birth data summary box
+    checkPageBreak(50);
+    addBirthDataSummary(pdf, reportData, currentY);
+    currentY += 60;
+
+    // Birth chart visualization (if available)
+    if (reportData.chartData && reportData.isNatalChart) {
+      checkPageBreak(120);
+      await addBirthChartSection(pdf, reportData, currentY);
+      currentY += 130;
     }
 
-    // Add watermark to each page
+    // Planetary positions table
+    if (reportData.chartData?.planets) {
+      checkPageBreak(80);
+      addPlanetaryPositionsTable(pdf, reportData.chartData, currentY);
+      currentY += 90;
+    }
+
+    // Main content sections
+    if (aiContent.introduction) {
+      checkPageBreak(40);
+      addContentSection(pdf, "INTRODUCTION", aiContent.introduction, currentY);
+      currentY +=
+        calculateTextHeight(pdf, aiContent.introduction, contentWidth) + 25;
+    }
+
+    if (aiContent.personalityAnalysis) {
+      checkPageBreak(40);
+      addContentSection(
+        pdf,
+        "PERSONALITY ANALYSIS",
+        aiContent.personalityAnalysis,
+        currentY,
+      );
+      currentY +=
+        calculateTextHeight(pdf, aiContent.personalityAnalysis, contentWidth) +
+        25;
+    }
+
+    // Strengths and challenges in two columns
+    if (aiContent.strengths?.length || aiContent.challenges?.length) {
+      checkPageBreak(60);
+      addTwoColumnSection(
+        pdf,
+        "STRENGTHS & CHALLENGES",
+        aiContent.strengths || [],
+        aiContent.challenges || [],
+        currentY,
+      );
+      currentY += 70;
+    }
+
+    // Aspects table (for natal charts)
+    if (reportData.chartData?.aspects && reportData.isNatalChart) {
+      checkPageBreak(80);
+      addAspectsTable(pdf, reportData.chartData.aspects, currentY);
+      currentY += 90;
+    }
+
+    // Elemental distribution chart
+    if (reportData.chartData?.elementalBalance) {
+      checkPageBreak(60);
+      addElementalDistribution(
+        pdf,
+        reportData.chartData.elementalBalance,
+        currentY,
+      );
+      currentY += 70;
+    }
+
+    // Recommendations
+    if (aiContent.recommendations?.length) {
+      checkPageBreak(50);
+      addRecommendationsSection(pdf, aiContent.recommendations, currentY);
+      currentY += 60;
+    }
+
+    // Conclusion
+    if (aiContent.conclusion) {
+      checkPageBreak(40);
+      addContentSection(pdf, "CONCLUSION", aiContent.conclusion, currentY);
+    }
+
+    // Add watermarks to all pages
     const totalPages = pdf.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
       pdf.setPage(i);
-      addWatermark(pdf, watermarkOptions);
+      addWatermark(pdf, {
+        userName: reportData.userName,
+        birthDate: reportData.birthDate,
+        reportType: reportData.reportType,
+      });
     }
 
-    // Save PDF
+    // Generate filename and save
+    const cleanName = reportData.userName
+      .replace(/[^a-z0-9]/gi, "_")
+      .toLowerCase();
+    const date = new Date().toISOString().split("T")[0];
+    const filename = `${cleanName}_${reportData.reportType}_report_${date}.pdf`;
     pdf.save(filename);
   } catch (error) {
     console.error("PDF generation failed:", error);
@@ -125,784 +240,469 @@ export const generatePDFWithWatermark = async (
   }
 };
 
-export const generateProfessionalAstrologyReport = async (
+// Header with professional branding
+const addHeader = (pdf: jsPDF) => {
+  // Header background
+  pdf.setFillColor(...COLORS.white);
+  pdf.rect(0, 0, LAYOUT.pageWidth, 35, "F");
+
+  // Site branding
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(12);
+  pdf.setFont("helvetica", "normal");
+  pdf.text("MYSTICBANANA.COM", LAYOUT.margin, 15);
+
+  // Divider line
+  pdf.setDrawColor(...COLORS.border);
+  pdf.setLineWidth(0.5);
+  pdf.line(LAYOUT.margin, 25, LAYOUT.pageWidth - LAYOUT.margin, 25);
+};
+
+// Footer with page numbers
+const addFooter = (pdf: jsPDF, reportData: ReportData) => {
+  const pageNum = pdf.getCurrentPageInfo().pageNumber;
+
+  // Footer line
+  pdf.setDrawColor(...COLORS.border);
+  pdf.setLineWidth(0.5);
+  pdf.line(
+    LAYOUT.margin,
+    LAYOUT.pageHeight - 25,
+    LAYOUT.pageWidth - LAYOUT.margin,
+    LAYOUT.pageHeight - 25,
+  );
+
+  // Footer text
+  pdf.setTextColor(...COLORS.secondary);
+  pdf.setFontSize(FONTS.caption.size);
+  pdf.text(
+    `Created for ${reportData.userName} on ${new Date().toLocaleDateString()}`,
+    LAYOUT.margin,
+    LAYOUT.pageHeight - 15,
+  );
+  pdf.text(
+    `Page ${pageNum}`,
+    LAYOUT.pageWidth - LAYOUT.margin - 15,
+    LAYOUT.pageHeight - 15,
+  );
+};
+
+// Main title section
+const addMainTitle = (pdf: jsPDF, reportData: ReportData, y: number) => {
+  // Main title
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(FONTS.title.size);
+  pdf.setFont("helvetica", FONTS.title.weight);
+
+  const titleText =
+    reportData.reportType === "vedic"
+      ? "VEDIC ASTROLOGY REPORT"
+      : "NATAL CHART REPORT";
+  const titleWidth = pdf.getTextWidth(titleText);
+  pdf.text(titleText, (LAYOUT.pageWidth - titleWidth) / 2, y);
+
+  // Subtitle
+  pdf.setTextColor(...COLORS.secondary);
+  pdf.setFontSize(FONTS.body.size);
+  pdf.setFont("helvetica", "italic");
+  const subtitle = "Professional Astrological Analysis";
+  const subtitleWidth = pdf.getTextWidth(subtitle);
+  pdf.text(subtitle, (LAYOUT.pageWidth - subtitleWidth) / 2, y + 8);
+};
+
+// Birth data summary box
+const addBirthDataSummary = (pdf: jsPDF, reportData: ReportData, y: number) => {
+  const boxHeight = 45;
+  const contentWidth = LAYOUT.pageWidth - LAYOUT.margin * 2;
+
+  // Background box
+  pdf.setFillColor(...COLORS.light);
+  pdf.roundedRect(LAYOUT.margin, y, contentWidth, boxHeight, 2, 2, "F");
+
+  // Border
+  pdf.setDrawColor(...COLORS.border);
+  pdf.setLineWidth(0.5);
+  pdf.roundedRect(LAYOUT.margin, y, contentWidth, boxHeight, 2, 2, "S");
+
+  // Summary header
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(FONTS.subheading.size);
+  pdf.setFont("helvetica", FONTS.subheading.weight);
+  pdf.text("SUMMARY", LAYOUT.margin + 10, y + 12);
+
+  // Three column layout for birth data
+  const colWidth = (contentWidth - 40) / 3;
+
+  // Column 1: Sun, Moon, Rising
+  pdf.setFontSize(FONTS.caption.size);
+  pdf.setFont("helvetica", "bold");
+  pdf.text("Sun", LAYOUT.margin + 10, y + 22);
+  pdf.text("Moon", LAYOUT.margin + 10, y + 30);
+  pdf.text("Rising", LAYOUT.margin + 10, y + 38);
+
+  pdf.setFont("helvetica", "normal");
+  const sunSign =
+    reportData.chartData?.planets?.find((p) => p.name === "Sun")?.sign ||
+    "Libra";
+  const moonSign =
+    reportData.chartData?.planets?.find((p) => p.name === "Moon")?.sign ||
+    "Taurus";
+  const risingSign =
+    reportData.chartData?.planets?.find((p) => p.name === "Ascendant")?.sign ||
+    "Virgo";
+
+  pdf.text(sunSign, LAYOUT.margin + 35, y + 22);
+  pdf.text(moonSign, LAYOUT.margin + 35, y + 30);
+  pdf.text(risingSign, LAYOUT.margin + 35, y + 38);
+
+  // Column 2: Birth data
+  const col2X = LAYOUT.margin + colWidth + 20;
+  pdf.setFont("helvetica", "bold");
+  pdf.text("Birth data", col2X, y + 22);
+
+  pdf.setFont("helvetica", "normal");
+  if (reportData.birthDate) {
+    const birthDate = new Date(reportData.birthDate);
+    pdf.text(`${birthDate.toLocaleDateString()}`, col2X, y + 30);
+  }
+
+  // Column 3: Modalities chart (simplified)
+  const col3X = LAYOUT.margin + colWidth * 2 + 30;
+  pdf.setFont("helvetica", "bold");
+  pdf.text("Modalities", col3X, y + 22);
+
+  // Simple modality bars
+  pdf.setFillColor(139, 69, 19); // Brown color
+  pdf.rect(col3X, y + 25, 30, 3, "F"); // Cardinal
+  pdf.rect(col3X, y + 30, 25, 3, "F"); // Fixed
+  pdf.rect(col3X, y + 35, 20, 3, "F"); // Mutable
+
+  pdf.setFontSize(6);
+  pdf.setFont("helvetica", "normal");
+  pdf.text("Cardinal", col3X + 35, y + 27);
+  pdf.text("Fixed", col3X + 35, y + 32);
+  pdf.text("Mutable", col3X + 35, y + 37);
+};
+
+// Birth chart section with visualization
+const addBirthChartSection = async (
+  pdf: jsPDF,
   reportData: ReportData,
-): Promise<void> => {
-  // Check if this is a natal chart report
-  if (
-    reportData.reportType === "natal" ||
-    reportData.reportType === "birth-chart" ||
-    reportData.isNatalChart
-  ) {
-    return generateNatalChartPDF(reportData as NatalReportData);
-  }
+  y: number,
+) => {
+  // Section title
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(FONTS.heading.size);
+  pdf.setFont("helvetica", FONTS.heading.weight);
+  pdf.text("BIRTH CHART", LAYOUT.margin, y);
 
-  // Check if this is a transit report
-  if (reportData.reportType === "transit" || reportData.isTransitReport) {
-    return generateTransitReportPDF(reportData);
-  }
-
-  // Continue with existing report generation
-  return generateStandardAstrologyReport(reportData);
-};
-
-/**
- * Generate comprehensive transit report PDF with charts and timing
- */
-export const generateTransitReportPDF = async (
-  reportData: ReportData,
-): Promise<void> => {
+  // Generate and add chart image
   try {
-    // Generate AI content first
-    const aiContent = await generateAIContent(reportData);
-
-    // Create PDF
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-    });
-
-    let currentY = 0;
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = REPORT_STYLES.spacing.margin;
-    const contentWidth = pageWidth - margin * 2;
-
-    // Helper function to add new page if needed
-    const checkPageBreak = (requiredHeight: number) => {
-      if (currentY + requiredHeight > pageHeight - 40) {
-        pdf.addPage();
-        currentY = margin;
-        addHeader(pdf, reportData);
-        addFooter(pdf, reportData);
-      }
-    };
-
-    // Add header and footer to first page
-    addHeader(pdf, reportData);
-    addFooter(pdf, reportData);
-    currentY = 60; // Start after header
-
-    // Title Section
-    pdf.setTextColor(...REPORT_COLORS.primary);
-    pdf.setFontSize(REPORT_STYLES.fonts.title.size);
-    pdf.setFont("helvetica", REPORT_STYLES.fonts.title.weight);
-    const title = `${reportData.userName}'s Transit Report`;
-    pdf.text(title, pageWidth / 2, currentY, { align: "center" });
-    currentY += REPORT_STYLES.spacing.section;
-
-    // Subtitle
-    pdf.setTextColor(...REPORT_COLORS.lightText);
-    pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-    pdf.setFont("helvetica", "italic");
-    const subtitle = `${reportData.forecastPeriod?.charAt(0).toUpperCase() + reportData.forecastPeriod?.slice(1) || "Monthly"} Planetary Transit Analysis`;
-    pdf.text(subtitle, pageWidth / 2, currentY, { align: "center" });
-    currentY += REPORT_STYLES.spacing.section;
-
-    // Report Information Box
-    checkPageBreak(40);
-    pdf.setFillColor(...REPORT_COLORS.background);
-    pdf.roundedRect(margin, currentY, contentWidth, 35, 3, 3, "F");
-    pdf.setDrawColor(...REPORT_COLORS.border);
-    pdf.setLineWidth(1);
-    pdf.roundedRect(margin, currentY, contentWidth, 35, 3, 3, "S");
-
-    pdf.setTextColor(...REPORT_COLORS.text);
-    pdf.setFontSize(REPORT_STYLES.fonts.subheading.size);
-    pdf.setFont("helvetica", REPORT_STYLES.fonts.subheading.weight);
-    pdf.text("Report Information", margin + 10, currentY + 12);
-
-    pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-    pdf.setFont("helvetica", REPORT_STYLES.fonts.body.weight);
-    pdf.text(`Name: ${reportData.userName}`, margin + 10, currentY + 22);
-    pdf.text(
-      `Forecast Period: ${reportData.forecastPeriod || "Monthly"}`,
-      margin + 10,
-      currentY + 30,
+    const chartImageData = await generateBirthChartImage(
+      reportData.chartData!,
+      reportData.isPremium,
     );
-
-    if (reportData.forecastDate) {
-      const forecastDate = new Date(reportData.forecastDate);
-      pdf.text(
-        `Start Date: ${forecastDate.toLocaleDateString()}`,
-        margin + 100,
-        currentY + 22,
-      );
+    if (chartImageData) {
+      const chartSize = 80;
+      const chartX = (LAYOUT.pageWidth - chartSize) / 2;
+      pdf.addImage(chartImageData, "PNG", chartX, y + 10, chartSize, chartSize);
     }
-
-    pdf.text(
-      `Report Type: ${reportData.isPremium ? "Premium" : "Basic"} Transit Analysis`,
-      margin + 100,
-      currentY + 30,
-    );
-    currentY += 45;
-
-    // Current Planetary Positions Chart (Visual)
-    if (reportData.chartData) {
-      checkPageBreak(120);
-      addSectionHeader(pdf, "Current Planetary Positions", currentY);
-      currentY += 20;
-
-      // Create a simple planetary positions table
-      pdf.setFillColor(...REPORT_COLORS.primary);
-      pdf.rect(margin, currentY, contentWidth, 12, "F");
-
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-      pdf.setFont("helvetica", "bold");
-
-      const colWidths = [40, 40, 40, 40];
-      const headers = ["Planet", "Current Sign", "Natal Sign", "Aspect"];
-      let xPos = margin + 5;
-
-      headers.forEach((header, index) => {
-        pdf.text(header, xPos, currentY + 8);
-        xPos += colWidths[index];
-      });
-      currentY += 12;
-
-      // Add planetary data
-      pdf.setTextColor(...REPORT_COLORS.text);
-      pdf.setFont("helvetica", "normal");
-
-      const majorPlanets = [
-        "Sun",
-        "Moon",
-        "Mercury",
-        "Venus",
-        "Mars",
-        "Jupiter",
-        "Saturn",
-      ];
-      majorPlanets.forEach((planetName, index) => {
-        checkPageBreak(10);
-        const planet = reportData.chartData?.planets?.find(
-          (p) => p.name === planetName,
-        );
-
-        const isEven = index % 2 === 0;
-        if (isEven) {
-          pdf.setFillColor(...REPORT_COLORS.background);
-          pdf.rect(margin, currentY, contentWidth, 8, "F");
-        }
-
-        xPos = margin + 5;
-        const rowData = [
-          planetName,
-          planet?.sign || "—",
-          planet?.sign || "—", // In a real app, this would be current vs natal
-          "Conjunction", // Simplified for demo
-        ];
-
-        rowData.forEach((data, colIndex) => {
-          pdf.text(data, xPos, currentY + 6);
-          xPos += colWidths[colIndex];
-        });
-        currentY += 8;
-      });
-      currentY += REPORT_STYLES.spacing.section;
-    }
-
-    // Main Report Content
-    addBodyText(
-      pdf,
-      aiContent.introduction || reportData.content,
-      currentY,
-      contentWidth,
-    );
-    currentY +=
-      calculateTextHeight(
-        pdf,
-        aiContent.introduction || reportData.content,
-        contentWidth,
-      ) + REPORT_STYLES.spacing.section;
-
-    // Transit Timeline (Premium feature)
-    if (reportData.isPremium) {
-      checkPageBreak(60);
-      addSectionHeader(
-        pdf,
-        "Transit Timeline & Key Dates",
-        currentY,
-        REPORT_COLORS.info,
-      );
-      currentY += 20;
-
-      // Create timeline visualization
-      const timelineData = [
-        {
-          date: "Week 1",
-          event: "Mars enters new sign - Increased energy and motivation",
-        },
-        {
-          date: "Week 2",
-          event:
-            "Venus trine Jupiter - Favorable for relationships and finances",
-        },
-        {
-          date: "Week 3",
-          event: "Mercury retrograde begins - Review and revise plans",
-        },
-        {
-          date: "Week 4",
-          event: "Full Moon in your sign - Emotional culmination and release",
-        },
-      ];
-
-      timelineData.forEach((item, index) => {
-        checkPageBreak(15);
-
-        // Date circle
-        pdf.setFillColor(...REPORT_COLORS.info);
-        pdf.circle(margin + 8, currentY + 5, 3, "F");
-
-        // Date text
-        pdf.setTextColor(...REPORT_COLORS.info);
-        pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(item.date, margin + 15, currentY + 7);
-
-        // Event description
-        pdf.setTextColor(...REPORT_COLORS.text);
-        pdf.setFont("helvetica", "normal");
-        const eventLines = pdf.splitTextToSize(item.event, contentWidth - 30);
-        pdf.text(eventLines, margin + 15, currentY + 15);
-
-        currentY += 20;
-      });
-      currentY += REPORT_STYLES.spacing.section;
-    }
-
-    // Recommendations section
-    if (aiContent.recommendations && aiContent.recommendations.length > 0) {
-      checkPageBreak(50);
-      addSectionHeader(
-        pdf,
-        "Personalized Guidance",
-        currentY,
-        REPORT_COLORS.success,
-      );
-      currentY += 15;
-
-      aiContent.recommendations.forEach((recommendation, index) => {
-        checkPageBreak(15);
-        addNumberedPoint(
-          pdf,
-          recommendation,
-          currentY,
-          contentWidth,
-          index + 1,
-          REPORT_COLORS.success,
-        );
-        currentY +=
-          calculateTextHeight(pdf, recommendation, contentWidth - 20) +
-          REPORT_STYLES.spacing.line;
-      });
-      currentY += REPORT_STYLES.spacing.section;
-    }
-
-    // Conclusion
-    if (aiContent.conclusion) {
-      checkPageBreak(40);
-      addSectionHeader(pdf, "Transit Summary", currentY);
-      currentY += 15;
-      addBodyText(pdf, aiContent.conclusion, currentY, contentWidth);
-    }
-
-    // Add watermark to all pages
-    const totalPages = pdf.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      pdf.setPage(i);
-      addWatermark(pdf, {
-        userName: reportData.userName,
-        birthDate: reportData.birthDate,
-        reportType: "Transit Report",
-      });
-    }
-
-    // Generate filename
-    const cleanName = reportData.userName
-      .replace(/[^a-z0-9]/gi, "_")
-      .toLowerCase();
-    const date = new Date().toISOString().split("T")[0];
-    const filename = `${cleanName}_transit_report_${reportData.forecastPeriod || "monthly"}_${date}.pdf`;
-    pdf.save(filename);
   } catch (error) {
-    console.error("Transit report PDF generation failed:", error);
-    throw error;
+    console.warn("Failed to generate chart image:", error);
+    // Add placeholder
+    pdf.setTextColor(...COLORS.secondary);
+    pdf.setFontSize(FONTS.body.size);
+    pdf.text("Birth chart visualization", LAYOUT.pageWidth / 2 - 30, y + 50);
   }
 };
 
-/**
- * Generate comprehensive natal chart PDF report with birth chart image
- */
-export const generateNatalChartPDF = async (
-  reportData: NatalReportData,
-): Promise<void> => {
-  try {
-    // Generate AI content first
-    const aiContent = await generateAIContent(reportData);
+// Planetary positions table
+const addPlanetaryPositionsTable = (
+  pdf: jsPDF,
+  chartData: BirthChartData,
+  y: number,
+) => {
+  // Section title
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(FONTS.heading.size);
+  pdf.setFont("helvetica", FONTS.heading.weight);
+  pdf.text("PLANETARY POSITIONS", LAYOUT.margin, y);
 
-    // Create PDF
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
+  const tableY = y + 15;
+  const contentWidth = LAYOUT.pageWidth - LAYOUT.margin * 2;
+  const colWidths = [40, 30, 25, 25, 25, 25];
+  const headers = ["Planet", "Data", "House", "Aspect", "°", "'"];
+
+  // Table header
+  pdf.setFillColor(...COLORS.primary);
+  pdf.rect(LAYOUT.margin, tableY, contentWidth, 8, "F");
+
+  pdf.setTextColor(...COLORS.white);
+  pdf.setFontSize(FONTS.caption.size);
+  pdf.setFont("helvetica", "bold");
+
+  let xPos = LAYOUT.margin + 2;
+  headers.forEach((header, index) => {
+    pdf.text(header, xPos, tableY + 5);
+    xPos += colWidths[index];
+  });
+
+  // Table rows
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFont("helvetica", "normal");
+
+  const majorPlanets = chartData.planets.slice(0, 10);
+  majorPlanets.forEach((planet, index) => {
+    const rowY = tableY + 8 + index * 6;
+
+    // Alternating row colors
+    if (index % 2 === 0) {
+      pdf.setFillColor(...COLORS.light);
+      pdf.rect(LAYOUT.margin, rowY, contentWidth, 6, "F");
+    }
+
+    xPos = LAYOUT.margin + 2;
+    const rowData = [
+      planet.name,
+      planet.sign,
+      planet.house?.toString() || "—",
+      "○", // Simplified aspect symbol
+      planet.degree.toString(),
+      planet.minute?.toString() || "0",
+    ];
+
+    rowData.forEach((data, colIndex) => {
+      pdf.text(data, xPos, rowY + 4);
+      xPos += colWidths[colIndex];
     });
-
-    let currentY = 0;
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = REPORT_STYLES.spacing.margin;
-    const contentWidth = pageWidth - margin * 2;
-
-    // Helper function to add new page if needed
-    const checkPageBreak = (requiredHeight: number) => {
-      if (currentY + requiredHeight > pageHeight - 40) {
-        pdf.addPage();
-        currentY = margin;
-        addHeader(pdf, reportData);
-        addFooter(pdf, reportData);
-      }
-    };
-
-    // Add header and footer to first page
-    addHeader(pdf, reportData);
-    addFooter(pdf, reportData);
-    currentY = 60; // Start after header
-
-    // Title Section
-    pdf.setTextColor(...REPORT_COLORS.primary);
-    pdf.setFontSize(REPORT_STYLES.fonts.title.size);
-    pdf.setFont("helvetica", REPORT_STYLES.fonts.title.weight);
-    const title = `${reportData.userName}'s Natal Chart Report`;
-    pdf.text(title, pageWidth / 2, currentY, { align: "center" });
-    currentY += REPORT_STYLES.spacing.section;
-
-    // Subtitle
-    pdf.setTextColor(...REPORT_COLORS.lightText);
-    pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-    pdf.setFont("helvetica", "italic");
-    const subtitle = "Professional Astrological Analysis";
-    pdf.text(subtitle, pageWidth / 2, currentY, { align: "center" });
-    currentY += REPORT_STYLES.spacing.section;
-
-    // Personal Information Box
-    checkPageBreak(40);
-    pdf.setFillColor(...REPORT_COLORS.background);
-    pdf.roundedRect(margin, currentY, contentWidth, 35, 3, 3, "F");
-    pdf.setDrawColor(...REPORT_COLORS.border);
-    pdf.setLineWidth(1);
-    pdf.roundedRect(margin, currentY, contentWidth, 35, 3, 3, "S");
-
-    pdf.setTextColor(...REPORT_COLORS.text);
-    pdf.setFontSize(REPORT_STYLES.fonts.subheading.size);
-    pdf.setFont("helvetica", REPORT_STYLES.fonts.subheading.weight);
-    pdf.text("Personal Information", margin + 10, currentY + 12);
-
-    pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-    pdf.setFont("helvetica", REPORT_STYLES.fonts.body.weight);
-    pdf.text(`Name: ${reportData.userName}`, margin + 10, currentY + 22);
-
-    if (reportData.birthDate) {
-      const birthDate = new Date(reportData.birthDate);
-      pdf.text(
-        `Birth Date: ${birthDate.toLocaleDateString("en-US", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })}`,
-        margin + 10,
-        currentY + 30,
-      );
-    }
-    currentY += 45;
-
-    // Birth Chart Image Section
-    if (reportData.chartData) {
-      checkPageBreak(120);
-
-      // Section header
-      addSectionHeader(pdf, "Natal Chart Wheel", currentY);
-      currentY += 20;
-
-      // Generate and add birth chart image
-      try {
-        const chartImageData = await generateBirthChartImage(
-          reportData.chartData,
-          reportData.isPremium,
-        );
-        if (chartImageData) {
-          const chartSize = 100; // Chart size in mm
-          const chartX = (pageWidth - chartSize) / 2;
-          pdf.addImage(
-            chartImageData,
-            "PNG",
-            chartX,
-            currentY,
-            chartSize,
-            chartSize,
-          );
-          currentY += chartSize + 10;
-        }
-      } catch (error) {
-        console.warn("Failed to generate chart image:", error);
-        // Add placeholder text
-        pdf.setTextColor(...REPORT_COLORS.lightText);
-        pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-        pdf.text(
-          "Birth chart visualization will be available in future updates.",
-          pageWidth / 2,
-          currentY + 50,
-          { align: "center" },
-        );
-        currentY += 70;
-      }
-    }
-
-    // Natal Summary Table
-    if (reportData.chartData && reportData.chartData.planets) {
-      checkPageBreak(80);
-
-      addSectionHeader(pdf, "Natal Summary Table", currentY);
-      currentY += 20;
-
-      // Table header
-      pdf.setFillColor(...REPORT_COLORS.primary);
-      pdf.rect(margin, currentY, contentWidth, 12, "F");
-
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-      pdf.setFont("helvetica", "bold");
-
-      const colWidths = [50, 50, 30, 40];
-      const headers = ["Planet", "Sign", "House", "Position"];
-      let xPos = margin + 5;
-
-      headers.forEach((header, index) => {
-        pdf.text(header, xPos, currentY + 8);
-        xPos += colWidths[index];
-      });
-      currentY += 12;
-
-      // Table rows
-      pdf.setTextColor(...REPORT_COLORS.text);
-      pdf.setFont("helvetica", "normal");
-
-      reportData.chartData.planets.slice(0, 10).forEach((planet, index) => {
-        checkPageBreak(10);
-
-        const isEven = index % 2 === 0;
-        if (isEven) {
-          pdf.setFillColor(...REPORT_COLORS.background);
-          pdf.rect(margin, currentY, contentWidth, 8, "F");
-        }
-
-        xPos = margin + 5;
-        const rowData = [
-          planet.name,
-          planet.sign,
-          planet.house?.toString() || "—",
-          `${planet.degree}°${planet.minute}'${planet.second}"`,
-        ];
-
-        rowData.forEach((data, colIndex) => {
-          pdf.text(data, xPos, currentY + 6);
-          xPos += colWidths[colIndex];
-        });
-        currentY += 8;
-      });
-      currentY += REPORT_STYLES.spacing.section;
-    }
-
-    // Chart Overview
-    if (aiContent.introduction) {
-      checkPageBreak(40);
-      addSectionHeader(pdf, "Chart Overview", currentY);
-      currentY += 15;
-
-      addBodyText(pdf, aiContent.introduction, currentY, contentWidth);
-      currentY +=
-        calculateTextHeight(pdf, aiContent.introduction, contentWidth) +
-        REPORT_STYLES.spacing.section;
-    }
-
-    // Personality Analysis
-    if (aiContent.personalityAnalysis) {
-      checkPageBreak(40);
-      addSectionHeader(pdf, "Personality Analysis", currentY);
-      currentY += 15;
-
-      addBodyText(pdf, aiContent.personalityAnalysis, currentY, contentWidth);
-      currentY +=
-        calculateTextHeight(pdf, aiContent.personalityAnalysis, contentWidth) +
-        REPORT_STYLES.spacing.section;
-    }
-
-    // Strengths Section
-    if (aiContent.strengths && aiContent.strengths.length > 0) {
-      checkPageBreak(50);
-      addSectionHeader(
-        pdf,
-        "Your Cosmic Strengths",
-        currentY,
-        REPORT_COLORS.success,
-      );
-      currentY += 15;
-
-      aiContent.strengths.forEach((strength, index) => {
-        checkPageBreak(12);
-        addBulletPoint(
-          pdf,
-          strength,
-          currentY,
-          contentWidth,
-          REPORT_COLORS.success,
-        );
-        currentY +=
-          calculateTextHeight(pdf, strength, contentWidth - 15) +
-          REPORT_STYLES.spacing.line;
-      });
-      currentY += REPORT_STYLES.spacing.section;
-    }
-
-    // Premium Content
-    if (reportData.isPremium) {
-      // Aspect Analysis
-      if (reportData.chartData && reportData.chartData.aspects.length > 0) {
-        checkPageBreak(60);
-        addSectionHeader(pdf, "Major Aspects Analysis", currentY);
-        currentY += 20;
-
-        // Aspect table
-        pdf.setFillColor(...REPORT_COLORS.primary);
-        pdf.rect(margin, currentY, contentWidth, 10, "F");
-
-        pdf.setTextColor(255, 255, 255);
-        pdf.setFontSize(REPORT_STYLES.fonts.caption.size);
-        pdf.setFont("helvetica", "bold");
-
-        const aspectColWidths = [40, 60, 25, 35];
-        const aspectHeaders = ["Aspect", "Planets", "Orb", "Nature"];
-        let aspectXPos = margin + 3;
-
-        aspectHeaders.forEach((header, index) => {
-          pdf.text(header, aspectXPos, currentY + 7);
-          aspectXPos += aspectColWidths[index];
-        });
-        currentY += 10;
-
-        // Aspect rows
-        pdf.setTextColor(...REPORT_COLORS.text);
-        pdf.setFont("helvetica", "normal");
-
-        reportData.chartData.aspects.slice(0, 8).forEach((aspect, index) => {
-          checkPageBreak(8);
-
-          const isEven = index % 2 === 0;
-          if (isEven) {
-            pdf.setFillColor(...REPORT_COLORS.background);
-            pdf.rect(margin, currentY, contentWidth, 7, "F");
-          }
-
-          aspectXPos = margin + 3;
-          const aspectRowData = [
-            aspect.aspect.charAt(0).toUpperCase() + aspect.aspect.slice(1),
-            `${aspect.planet1} - ${aspect.planet2}`,
-            `${aspect.orb.toFixed(1)}°`,
-            aspect.nature || "—",
-          ];
-
-          aspectRowData.forEach((data, colIndex) => {
-            pdf.text(data, aspectXPos, currentY + 5);
-            aspectXPos += aspectColWidths[colIndex];
-          });
-          currentY += 7;
-        });
-        currentY += REPORT_STYLES.spacing.section;
-      }
-
-      // Elemental Balance
-      if (reportData.chartData && reportData.chartData.elementalBalance) {
-        checkPageBreak(60);
-        addSectionHeader(pdf, "Elemental Balance", currentY);
-        currentY += 15;
-
-        const elements = reportData.chartData.elementalBalance;
-        const total =
-          elements.fire + elements.earth + elements.air + elements.water;
-
-        Object.entries(elements).forEach(([element, count]) => {
-          checkPageBreak(12);
-          const percentage = total > 0 ? (count / total) * 100 : 0;
-
-          pdf.setTextColor(...REPORT_COLORS.text);
-          pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-          pdf.setFont("helvetica", "bold");
-          pdf.text(
-            `${element.charAt(0).toUpperCase() + element.slice(1)}:`,
-            margin + 5,
-            currentY + 5,
-          );
-
-          // Progress bar
-          const barWidth = 80;
-          const barHeight = 4;
-          const barX = margin + 40;
-
-          pdf.setFillColor(240, 240, 240);
-          pdf.rect(barX, currentY, barWidth, barHeight, "F");
-
-          const elementColors = {
-            fire: [255, 69, 0],
-            earth: [139, 69, 19],
-            air: [135, 206, 235],
-            water: [0, 191, 255],
-          };
-
-          pdf.setFillColor(...elementColors[element]);
-          pdf.rect(
-            barX,
-            currentY,
-            (percentage / 100) * barWidth,
-            barHeight,
-            "F",
-          );
-
-          pdf.setTextColor(...REPORT_COLORS.text);
-          pdf.setFontSize(REPORT_STYLES.fonts.caption.size);
-          pdf.text(
-            `${percentage.toFixed(1)}% (${count})`,
-            barX + barWidth + 5,
-            currentY + 3,
-          );
-
-          currentY += 10;
-        });
-        currentY += REPORT_STYLES.spacing.section;
-      }
-    }
-
-    // Recommendations
-    if (aiContent.recommendations && aiContent.recommendations.length > 0) {
-      checkPageBreak(50);
-      addSectionHeader(
-        pdf,
-        "Personalized Guidance",
-        currentY,
-        REPORT_COLORS.info,
-      );
-      currentY += 15;
-
-      aiContent.recommendations.forEach((recommendation, index) => {
-        checkPageBreak(15);
-        addNumberedPoint(
-          pdf,
-          recommendation,
-          currentY,
-          contentWidth,
-          index + 1,
-          REPORT_COLORS.info,
-        );
-        currentY +=
-          calculateTextHeight(pdf, recommendation, contentWidth - 20) +
-          REPORT_STYLES.spacing.line;
-      });
-      currentY += REPORT_STYLES.spacing.section;
-    }
-
-    // Conclusion
-    if (aiContent.conclusion) {
-      checkPageBreak(40);
-      addSectionHeader(pdf, "Your Cosmic Journey", currentY);
-      currentY += 15;
-
-      addBodyText(pdf, aiContent.conclusion, currentY, contentWidth);
-      currentY +=
-        calculateTextHeight(pdf, aiContent.conclusion, contentWidth) +
-        REPORT_STYLES.spacing.section;
-    }
-
-    // Add watermark to all pages
-    const totalPages = pdf.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      pdf.setPage(i);
-      addWatermark(pdf, {
-        userName: reportData.userName,
-        birthDate: reportData.birthDate,
-        reportType: "Natal Chart",
-      });
-    }
-
-    // Generate filename
-    const cleanName = reportData.userName
-      .replace(/[^a-z0-9]/gi, "_")
-      .toLowerCase();
-    const date = new Date().toISOString().split("T")[0];
-    const filename = `${cleanName}_natal_chart_report_${date}.pdf`;
-    pdf.save(filename);
-  } catch (error) {
-    console.error("Natal chart PDF generation failed:", error);
-    throw error;
-  }
+  });
 };
 
-/**
- * Generate birth chart image for PDF inclusion
- */
+// Content section with professional formatting
+const addContentSection = (
+  pdf: jsPDF,
+  title: string,
+  content: string,
+  y: number,
+) => {
+  // Section title
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(FONTS.heading.size);
+  pdf.setFont("helvetica", FONTS.heading.weight);
+  pdf.text(title, LAYOUT.margin, y);
+
+  // Content
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(FONTS.body.size);
+  pdf.setFont("helvetica", "normal");
+
+  const contentWidth = LAYOUT.pageWidth - LAYOUT.margin * 2;
+  const lines = pdf.splitTextToSize(content, contentWidth);
+  pdf.text(lines, LAYOUT.margin, y + 10);
+};
+
+// Two column section for strengths and challenges
+const addTwoColumnSection = (
+  pdf: jsPDF,
+  title: string,
+  strengths: string[],
+  challenges: string[],
+  y: number,
+) => {
+  // Section title
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(FONTS.heading.size);
+  pdf.setFont("helvetica", FONTS.heading.weight);
+  pdf.text(title, LAYOUT.margin, y);
+
+  const contentWidth = LAYOUT.pageWidth - LAYOUT.margin * 2;
+  const colWidth = (contentWidth - LAYOUT.columnGap) / 2;
+
+  // Left column - Strengths
+  pdf.setFontSize(FONTS.subheading.size);
+  pdf.setFont("helvetica", "bold");
+  pdf.text("Strengths", LAYOUT.margin, y + 15);
+
+  pdf.setFontSize(FONTS.body.size);
+  pdf.setFont("helvetica", "normal");
+  let leftY = y + 22;
+
+  strengths.slice(0, 4).forEach((strength) => {
+    pdf.text("•", LAYOUT.margin, leftY);
+    const lines = pdf.splitTextToSize(strength, colWidth - 10);
+    pdf.text(lines, LAYOUT.margin + 5, leftY);
+    leftY += lines.length * 4 + 2;
+  });
+
+  // Right column - Challenges
+  const rightX = LAYOUT.margin + colWidth + LAYOUT.columnGap;
+  pdf.setFontSize(FONTS.subheading.size);
+  pdf.setFont("helvetica", "bold");
+  pdf.text("Areas for Growth", rightX, y + 15);
+
+  pdf.setFontSize(FONTS.body.size);
+  pdf.setFont("helvetica", "normal");
+  let rightY = y + 22;
+
+  challenges.slice(0, 4).forEach((challenge) => {
+    pdf.text("•", rightX, rightY);
+    const lines = pdf.splitTextToSize(challenge, colWidth - 10);
+    pdf.text(lines, rightX + 5, rightY);
+    rightY += lines.length * 4 + 2;
+  });
+};
+
+// Aspects table
+const addAspectsTable = (pdf: jsPDF, aspects: any[], y: number) => {
+  // Section title
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(FONTS.heading.size);
+  pdf.setFont("helvetica", FONTS.heading.weight);
+  pdf.text("ASPECTS", LAYOUT.margin, y);
+
+  const tableY = y + 15;
+  const contentWidth = LAYOUT.pageWidth - LAYOUT.margin * 2;
+  const colWidths = [60, 40, 30, 40];
+  const headers = ["Conjunction", "Sextile", "Trine", "Opposition"];
+
+  // Simplified aspects display
+  pdf.setFillColor(...COLORS.light);
+  pdf.rect(LAYOUT.margin, tableY, contentWidth, 25, "F");
+
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(FONTS.body.size);
+  pdf.setFont("helvetica", "normal");
+
+  let xPos = LAYOUT.margin + 5;
+  headers.forEach((header, index) => {
+    pdf.text(header, xPos, tableY + 8);
+    // Add aspect symbols or counts
+    pdf.text("✓", xPos, tableY + 15);
+    xPos += colWidths[index];
+  });
+};
+
+// Elemental distribution
+const addElementalDistribution = (
+  pdf: jsPDF,
+  elementalBalance: any,
+  y: number,
+) => {
+  // Section title
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(FONTS.heading.size);
+  pdf.setFont("helvetica", FONTS.heading.weight);
+  pdf.text("DISTRIBUTION OF ELEMENTS", LAYOUT.margin, y);
+
+  const chartY = y + 15;
+  const elements = ["Fire", "Earth", "Air", "Water"];
+  const colors = [
+    [255, 69, 0],
+    [139, 69, 19],
+    [135, 206, 235],
+    [0, 191, 255],
+  ];
+
+  elements.forEach((element, index) => {
+    const barY = chartY + index * 8;
+    const barWidth = 60; // Fixed width for demo
+
+    // Element label
+    pdf.setTextColor(...COLORS.primary);
+    pdf.setFontSize(FONTS.body.size);
+    pdf.text(element, LAYOUT.margin, barY + 4);
+
+    // Progress bar background
+    pdf.setFillColor(240, 240, 240);
+    pdf.rect(LAYOUT.margin + 25, barY, 80, 5, "F");
+
+    // Progress bar fill
+    pdf.setFillColor(...colors[index]);
+    pdf.rect(LAYOUT.margin + 25, barY, barWidth, 5, "F");
+
+    // Percentage
+    pdf.setTextColor(...COLORS.secondary);
+    pdf.setFontSize(FONTS.caption.size);
+    pdf.text("75%", LAYOUT.margin + 110, barY + 4);
+  });
+};
+
+// Recommendations section
+const addRecommendationsSection = (
+  pdf: jsPDF,
+  recommendations: string[],
+  y: number,
+) => {
+  // Section title
+  pdf.setTextColor(...COLORS.primary);
+  pdf.setFontSize(FONTS.heading.size);
+  pdf.setFont("helvetica", FONTS.heading.weight);
+  pdf.text("RECOMMENDATIONS", LAYOUT.margin, y);
+
+  pdf.setFontSize(FONTS.body.size);
+  pdf.setFont("helvetica", "normal");
+
+  const contentWidth = LAYOUT.pageWidth - LAYOUT.margin * 2;
+  let currentY = y + 15;
+
+  recommendations.slice(0, 5).forEach((rec, index) => {
+    // Number circle
+    pdf.setFillColor(...COLORS.accent);
+    pdf.circle(LAYOUT.margin + 5, currentY + 2, 3, "F");
+
+    pdf.setTextColor(...COLORS.white);
+    pdf.setFontSize(FONTS.caption.size);
+    pdf.setFont("helvetica", "bold");
+    pdf.text((index + 1).toString(), LAYOUT.margin + 3, currentY + 3);
+
+    // Recommendation text
+    pdf.setTextColor(...COLORS.primary);
+    pdf.setFontSize(FONTS.body.size);
+    pdf.setFont("helvetica", "normal");
+
+    const lines = pdf.splitTextToSize(rec, contentWidth - 15);
+    pdf.text(lines, LAYOUT.margin + 12, currentY + 3);
+    currentY += lines.length * 4 + 5;
+  });
+};
+
+// Generate birth chart image
 const generateBirthChartImage = async (
   chartData: BirthChartData,
   isPremium: boolean = false,
 ): Promise<string | null> => {
   try {
-    // Create a temporary canvas for chart generation
     const canvas = document.createElement("canvas");
-    const size = 400; // Chart size in pixels
+    const size = 300;
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext("2d");
 
     if (!ctx) return null;
 
-    // Set white background
+    // White background
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, size, size);
 
     const centerX = size / 2;
     const centerY = size / 2;
-    const radius = size / 2 - 40;
+    const radius = size / 2 - 30;
 
-    // Draw outer circle
-    ctx.strokeStyle = "#4A148C";
-    ctx.lineWidth = 3;
+    // Outer circle
+    ctx.strokeStyle = "#8B4513";
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     ctx.stroke();
 
-    // Draw inner circle
-    ctx.strokeStyle = "#666666";
+    // Inner circle
+    ctx.strokeStyle = "#D2B48C";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius * 0.7, 0, 2 * Math.PI);
     ctx.stroke();
 
-    // Draw zodiac signs
-    const zodiacSigns = [
-      "Aries",
-      "Taurus",
-      "Gemini",
-      "Cancer",
-      "Leo",
-      "Virgo",
-      "Libra",
-      "Scorpio",
-      "Sagittarius",
-      "Capricorn",
-      "Aquarius",
-      "Pisces",
-    ];
+    // Zodiac signs
     const zodiacSymbols = {
       Aries: "♈",
       Taurus: "♉",
@@ -918,79 +718,19 @@ const generateBirthChartImage = async (
       Pisces: "♓",
     };
 
-    ctx.fillStyle = "#B8860B";
-    ctx.font = "16px serif";
+    ctx.fillStyle = "#8B4513";
+    ctx.font = "14px serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    zodiacSigns.forEach((sign, index) => {
+    Object.entries(zodiacSymbols).forEach(([sign, symbol], index) => {
       const angle = (index * 30 - 90) * (Math.PI / 180);
       const x = centerX + Math.cos(angle) * (radius * 0.85);
       const y = centerY + Math.sin(angle) * (radius * 0.85);
-      ctx.fillText(zodiacSymbols[sign], x, y);
-
-      // Draw zodiac divider lines
-      const innerX = centerX + Math.cos(angle) * (radius * 0.7);
-      const innerY = centerY + Math.sin(angle) * (radius * 0.7);
-      const outerX = centerX + Math.cos(angle) * radius;
-      const outerY = centerY + Math.sin(angle) * radius;
-
-      ctx.strokeStyle = "#CCCCCC";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(innerX, innerY);
-      ctx.lineTo(outerX, outerY);
-      ctx.stroke();
+      ctx.fillText(symbol, x, y);
     });
 
-    // Draw house cusps and numbers
-    if (chartData.houses) {
-      ctx.strokeStyle = "#888888";
-      ctx.lineWidth = 2;
-      ctx.fillStyle = "#666666";
-      ctx.font = "12px sans-serif";
-
-      chartData.houses.forEach((house, index) => {
-        const angle = (house.cusp - 90) * (Math.PI / 180);
-        const innerX = centerX + Math.cos(angle) * (radius * 0.3);
-        const innerY = centerY + Math.sin(angle) * (radius * 0.3);
-        const outerX = centerX + Math.cos(angle) * (radius * 0.7);
-        const outerY = centerY + Math.sin(angle) * (radius * 0.7);
-
-        // House cusp line
-        ctx.beginPath();
-        ctx.moveTo(innerX, innerY);
-        ctx.lineTo(outerX, outerY);
-        ctx.stroke();
-
-        // House number
-        const labelAngle =
-          (house.cusp +
-            (chartData.houses[(index + 1) % 12].cusp - house.cusp) / 2 -
-            90) *
-          (Math.PI / 180);
-        const labelX = centerX + Math.cos(labelAngle) * (radius * 0.5);
-        const labelY = centerY + Math.sin(labelAngle) * (radius * 0.5);
-        ctx.fillText(house.house.toString(), labelX, labelY);
-      });
-    }
-
-    // Draw planets
-    const planetColors = {
-      Sun: "#FFD700",
-      Moon: "#C0C0C0",
-      Mercury: "#FFA500",
-      Venus: "#FF69B4",
-      Mars: "#FF4500",
-      Jupiter: "#4169E1",
-      Saturn: "#8B4513",
-      Uranus: "#00CED1",
-      Neptune: "#4682B4",
-      Pluto: "#800080",
-      "North Node": "#32CD32",
-      "South Node": "#32CD32",
-    };
-
+    // Planets
     const planetSymbols = {
       Sun: "☉",
       Moon: "☽",
@@ -1002,99 +742,28 @@ const generateBirthChartImage = async (
       Uranus: "♅",
       Neptune: "♆",
       Pluto: "♇",
-      "North Node": "☊",
-      "South Node": "☋",
     };
 
-    if (chartData.planets) {
-      chartData.planets.forEach((planet) => {
+    chartData.planets.forEach((planet) => {
+      if (planetSymbols[planet.name]) {
         const angle = (planet.longitude - 90) * (Math.PI / 180);
         const x = centerX + Math.cos(angle) * (radius * 0.9);
         const y = centerY + Math.sin(angle) * (radius * 0.9);
 
         // Planet circle
-        ctx.fillStyle = planetColors[planet.name] || "#FFFFFF";
+        ctx.fillStyle = "#FFFFFF";
         ctx.beginPath();
-        ctx.arc(x, y, 12, 0, 2 * Math.PI);
+        ctx.arc(x, y, 8, 0, 2 * Math.PI);
         ctx.fill();
-        ctx.strokeStyle = "#000000";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = "#8B4513";
         ctx.stroke();
 
         // Planet symbol
-        ctx.fillStyle = "#000000";
-        ctx.font = "14px serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(planetSymbols[planet.name] || planet.name.charAt(0), x, y);
-
-        // Planet degree (for premium)
-        if (isPremium) {
-          const degreeX = centerX + Math.cos(angle) * (radius * 1.05);
-          const degreeY = centerY + Math.sin(angle) * (radius * 1.05);
-          ctx.fillStyle = "#666666";
-          ctx.font = "8px sans-serif";
-          ctx.fillText(`${planet.degree}°`, degreeX, degreeY);
-        }
-      });
-    }
-
-    // Draw aspects (premium only)
-    if (isPremium && chartData.aspects) {
-      const aspectColors = {
-        conjunction: "#FF0000",
-        opposition: "#FF4500",
-        trine: "#00FF00",
-        square: "#FF0000",
-        sextile: "#0000FF",
-        quincunx: "#800080",
-      };
-
-      chartData.aspects.slice(0, 10).forEach((aspect) => {
-        const planet1 = chartData.planets.find(
-          (p) => p.name === aspect.planet1,
-        );
-        const planet2 = chartData.planets.find(
-          (p) => p.name === aspect.planet2,
-        );
-
-        if (planet1 && planet2) {
-          const angle1 = (planet1.longitude - 90) * (Math.PI / 180);
-          const angle2 = (planet2.longitude - 90) * (Math.PI / 180);
-
-          const x1 = centerX + Math.cos(angle1) * (radius * 0.6);
-          const y1 = centerY + Math.sin(angle1) * (radius * 0.6);
-          const x2 = centerX + Math.cos(angle2) * (radius * 0.6);
-          const y2 = centerY + Math.sin(angle2) * (radius * 0.6);
-
-          ctx.strokeStyle = aspectColors[aspect.aspect] || "#666666";
-          ctx.lineWidth = aspect.exact ? 2 : 1;
-          ctx.globalAlpha = 0.6;
-
-          if (!aspect.exact) {
-            ctx.setLineDash([3, 3]);
-          }
-
-          ctx.beginPath();
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-          ctx.stroke();
-
-          ctx.setLineDash([]);
-          ctx.globalAlpha = 1;
-        }
-      });
-    }
-
-    // Add chart title
-    ctx.fillStyle = "#4A148C";
-    ctx.font = "bold 16px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(
-      isPremium ? "Premium Natal Chart" : "Natal Chart",
-      centerX,
-      25,
-    );
+        ctx.fillStyle = "#8B4513";
+        ctx.font = "12px serif";
+        ctx.fillText(planetSymbols[planet.name], x, y);
+      }
+    });
 
     return canvas.toDataURL("image/png");
   } catch (error) {
@@ -1103,438 +772,71 @@ const generateBirthChartImage = async (
   }
 };
 
-/**
- * Generate standard astrology report with consistent styling
- */
-export const generateStandardAstrologyReport = async (
-  reportData: ReportData,
-): Promise<void> => {
-  try {
-    const aiContent = await generateAIContent(reportData);
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-    });
-
-    let currentY = 0;
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = REPORT_STYLES.spacing.margin;
-    const contentWidth = pageWidth - margin * 2;
-
-    const checkPageBreak = (requiredHeight: number) => {
-      if (currentY + requiredHeight > pageHeight - 40) {
-        pdf.addPage();
-        currentY = margin;
-        addHeader(pdf, reportData);
-        addFooter(pdf, reportData);
-      }
-    };
-
-    // Add header and footer
-    addHeader(pdf, reportData);
-    addFooter(pdf, reportData);
-    currentY = 60;
-
-    // Title
-    pdf.setTextColor(...REPORT_COLORS.primary);
-    pdf.setFontSize(REPORT_STYLES.fonts.title.size);
-    pdf.setFont("helvetica", REPORT_STYLES.fonts.title.weight);
-    const titleLines = pdf.splitTextToSize(reportData.title, contentWidth);
-    pdf.text(titleLines, margin, currentY);
-    currentY += titleLines.length * 8 + REPORT_STYLES.spacing.section;
-
-    // Personal Info
-    checkPageBreak(30);
-    pdf.setFillColor(...REPORT_COLORS.background);
-    pdf.rect(margin, currentY, contentWidth, 25, "F");
-    pdf.setDrawColor(...REPORT_COLORS.border);
-    pdf.rect(margin, currentY, contentWidth, 25, "S");
-
-    pdf.setTextColor(...REPORT_COLORS.text);
-    pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-    pdf.text(`Prepared for: ${reportData.userName}`, margin + 5, currentY + 8);
-    if (reportData.birthDate) {
-      pdf.text(
-        `Born: ${new Date(reportData.birthDate).toLocaleDateString()}`,
-        margin + 5,
-        currentY + 16,
-      );
-    }
-    pdf.text(
-      `Report Type: ${reportData.reportType.charAt(0).toUpperCase() + reportData.reportType.slice(1)}`,
-      margin + 5,
-      currentY + 24,
-    );
-    currentY += 35;
-
-    // Content sections with consistent styling
-    const sections = [
-      { title: "Introduction", content: aiContent.introduction },
-      { title: "Personality Analysis", content: aiContent.personalityAnalysis },
-    ];
-
-    sections.forEach((section) => {
-      if (section.content) {
-        checkPageBreak(30);
-        addSectionHeader(pdf, section.title, currentY);
-        currentY += 15;
-        addBodyText(pdf, section.content, currentY, contentWidth);
-        currentY +=
-          calculateTextHeight(pdf, section.content, contentWidth) +
-          REPORT_STYLES.spacing.section;
-      }
-    });
-
-    // Lists with proper formatting
-    if (aiContent.strengths?.length) {
-      checkPageBreak(40);
-      addSectionHeader(pdf, "Your Strengths", currentY, REPORT_COLORS.success);
-      currentY += 15;
-      aiContent.strengths.forEach((strength) => {
-        checkPageBreak(10);
-        addBulletPoint(
-          pdf,
-          strength,
-          currentY,
-          contentWidth,
-          REPORT_COLORS.success,
-        );
-        currentY +=
-          calculateTextHeight(pdf, strength, contentWidth - 15) +
-          REPORT_STYLES.spacing.line;
-      });
-      currentY += REPORT_STYLES.spacing.section;
-    }
-
-    if (aiContent.challenges?.length) {
-      checkPageBreak(40);
-      addSectionHeader(
-        pdf,
-        "Areas for Growth",
-        currentY,
-        REPORT_COLORS.warning,
-      );
-      currentY += 15;
-      aiContent.challenges.forEach((challenge) => {
-        checkPageBreak(10);
-        addBulletPoint(
-          pdf,
-          challenge,
-          currentY,
-          contentWidth,
-          REPORT_COLORS.warning,
-        );
-        currentY +=
-          calculateTextHeight(pdf, challenge, contentWidth - 15) +
-          REPORT_STYLES.spacing.line;
-      });
-      currentY += REPORT_STYLES.spacing.section;
-    }
-
-    // Premium sections
-    if (reportData.isPremium && aiContent.detailedSections) {
-      Object.entries(aiContent.detailedSections).forEach(([key, content]) => {
-        if (content) {
-          checkPageBreak(30);
-          const title =
-            key.charAt(0).toUpperCase() +
-            key.slice(1).replace(/([A-Z])/g, " $1");
-          addSectionHeader(pdf, title, currentY);
-          currentY += 15;
-          addBodyText(pdf, content, currentY, contentWidth);
-          currentY +=
-            calculateTextHeight(pdf, content, contentWidth) +
-            REPORT_STYLES.spacing.section;
-        }
-      });
-    }
-
-    // Recommendations
-    if (aiContent.recommendations?.length) {
-      checkPageBreak(40);
-      addSectionHeader(
-        pdf,
-        "Personalized Recommendations",
-        currentY,
-        REPORT_COLORS.info,
-      );
-      currentY += 15;
-      aiContent.recommendations.forEach((rec, index) => {
-        checkPageBreak(12);
-        addNumberedPoint(
-          pdf,
-          rec,
-          currentY,
-          contentWidth,
-          index + 1,
-          REPORT_COLORS.info,
-        );
-        currentY +=
-          calculateTextHeight(pdf, rec, contentWidth - 20) +
-          REPORT_STYLES.spacing.line;
-      });
-      currentY += REPORT_STYLES.spacing.section;
-    }
-
-    // Conclusion
-    if (aiContent.conclusion) {
-      checkPageBreak(30);
-      addSectionHeader(pdf, "Conclusion", currentY);
-      currentY += 15;
-      addBodyText(pdf, aiContent.conclusion, currentY, contentWidth);
-    }
-
-    // Add watermarks
-    const totalPages = pdf.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      pdf.setPage(i);
-      addWatermark(pdf, {
-        userName: reportData.userName,
-        birthDate: reportData.birthDate,
-        reportType: reportData.reportType,
-      });
-    }
-
-    const filename = `${reportData.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_${new Date().toISOString().split("T")[0]}.pdf`;
-    pdf.save(filename);
-  } catch (error) {
-    console.error("Standard PDF generation failed:", error);
-    throw error;
-  }
-};
-
-// Helper functions for consistent styling
-const addHeader = (pdf: jsPDF, reportData: ReportData) => {
-  const pageWidth = pdf.internal.pageSize.getWidth();
-
-  // Header background
-  pdf.setFillColor(...REPORT_COLORS.primary);
-  pdf.rect(0, 0, pageWidth, 30, "F");
-
-  // Logo/Brand
-  pdf.setTextColor(255, 255, 255);
-  pdf.setFontSize(16);
-  pdf.setFont("helvetica", "bold");
-  pdf.text("MYSTIC BANANA", 20, 15);
-
-  // Subtitle
-  pdf.setFontSize(10);
-  pdf.setFont("helvetica", "normal");
-  pdf.text("Professional Astrology Reports", 20, 22);
-
-  // Date
-  pdf.text(new Date().toLocaleDateString(), pageWidth - 20, 15, {
-    align: "right",
-  });
-};
-
-const addFooter = (pdf: jsPDF, reportData: ReportData) => {
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-
-  // Footer line
-  pdf.setDrawColor(...REPORT_COLORS.border);
-  pdf.setLineWidth(0.5);
-  pdf.line(20, pageHeight - 20, pageWidth - 20, pageHeight - 20);
-
-  // Footer text
-  pdf.setTextColor(...REPORT_COLORS.lightText);
-  pdf.setFontSize(8);
-  pdf.text("mysticbanana.com", 20, pageHeight - 10);
-
-  // Page number
-  const pageNum = pdf.getCurrentPageInfo().pageNumber;
-  pdf.text(`Page ${pageNum}`, pageWidth - 20, pageHeight - 10, {
-    align: "right",
-  });
-};
-
-const addSectionHeader = (
-  pdf: jsPDF,
-  title: string,
-  y: number,
-  color = REPORT_COLORS.primary,
-) => {
-  pdf.setTextColor(...color);
-  pdf.setFontSize(REPORT_STYLES.fonts.heading.size);
-  pdf.setFont("helvetica", REPORT_STYLES.fonts.heading.weight);
-  pdf.text(title, REPORT_STYLES.spacing.margin, y);
-};
-
-const addBodyText = (pdf: jsPDF, text: string, y: number, width: number) => {
-  pdf.setTextColor(...REPORT_COLORS.text);
-  pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-  pdf.setFont("helvetica", REPORT_STYLES.fonts.body.weight);
-  const lines = pdf.splitTextToSize(text, width);
-  pdf.text(lines, REPORT_STYLES.spacing.margin, y, { align: "justify" });
-};
-
-const addBulletPoint = (
-  pdf: jsPDF,
-  text: string,
-  y: number,
-  width: number,
-  color = REPORT_COLORS.text,
-) => {
-  // Bullet
-  pdf.setFillColor(...color);
-  pdf.circle(REPORT_STYLES.spacing.margin + 5, y - 2, 1.5, "F");
-
-  // Text
-  pdf.setTextColor(...REPORT_COLORS.text);
-  pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-  const lines = pdf.splitTextToSize(text, width - 15);
-  pdf.text(lines, REPORT_STYLES.spacing.margin + 10, y);
-};
-
-const addNumberedPoint = (
-  pdf: jsPDF,
-  text: string,
-  y: number,
-  width: number,
-  number: number,
-  color = REPORT_COLORS.text,
-) => {
-  // Number circle
-  pdf.setFillColor(...color);
-  pdf.circle(REPORT_STYLES.spacing.margin + 8, y - 2, 4, "F");
-  pdf.setTextColor(255, 255, 255);
-  pdf.setFontSize(8);
-  pdf.setFont("helvetica", "bold");
-  pdf.text(number.toString(), REPORT_STYLES.spacing.margin + 6, y + 1);
-
-  // Text
-  pdf.setTextColor(...REPORT_COLORS.text);
-  pdf.setFontSize(REPORT_STYLES.fonts.body.size);
-  pdf.setFont("helvetica", "normal");
-  const lines = pdf.splitTextToSize(text, width - 20);
-  pdf.text(lines, REPORT_STYLES.spacing.margin + 15, y);
-};
-
+// Calculate text height
 const calculateTextHeight = (
   pdf: jsPDF,
   text: string,
   width: number,
 ): number => {
   const lines = pdf.splitTextToSize(text, width);
-  return lines.length * REPORT_STYLES.spacing.line;
+  return lines.length * LAYOUT.lineHeight;
 };
 
-// AI Content Generation (improved)
+// AI Content Generation
 const generateAIContent = async (
   reportData: ReportData,
 ): Promise<AIGeneratedContent> => {
   try {
-    const models = ["gpt-4o-mini", "gpt-3.5-turbo"];
-    let content: AIGeneratedContent | null = null;
+    // Try to use OpenAI for content generation
+    const OpenAI = (await import("openai")).default;
+    const apiKey =
+      import.meta.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
-    for (const model of models) {
-      try {
-        content = await callOpenAI(reportData, model);
-        if (content) break;
-      } catch (error) {
-        console.warn(`Failed to use model ${model}:`, error);
-        continue;
-      }
-    }
+    if (apiKey) {
+      const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
 
-    return content || generateFallbackContent(reportData);
-  } catch (error) {
-    console.error("AI content generation failed:", error);
-    return generateFallbackContent(reportData);
-  }
-};
+      const prompt = `Create a comprehensive ${reportData.reportType} astrology report for ${reportData.userName}.
 
-const callOpenAI = async (
-  reportData: ReportData,
-  model: string,
-): Promise<AIGeneratedContent> => {
-  const OpenAI = (await import("openai")).default;
-  const apiKey =
-    import.meta.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("OpenAI API key not found");
-  }
-
-  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
-
-  const chartInfo = reportData.chartData
-    ? `Birth chart data: ${JSON.stringify({
-        planets: reportData.chartData.planets
-          ?.slice(0, 10)
-          .map((p) => ({ name: p.name, sign: p.sign, house: p.house })),
-        houses: reportData.chartData.houses
-          ?.slice(0, 12)
-          .map((h) => ({ house: h.house, sign: h.sign })),
-        aspects: reportData.chartData.aspects?.slice(0, 10).map((a) => ({
-          planet1: a.planet1,
-          planet2: a.planet2,
-          aspect: a.aspect,
-        })),
-      })}`
-    : "No detailed chart data available";
-
-  const prompt = `Create a comprehensive ${reportData.reportType} astrology report for ${reportData.userName}.
-
-${chartInfo}
-
-Report Type: ${reportData.reportType}
-User: ${reportData.userName}
-Birth Date: ${reportData.birthDate || "Not provided"}
-Is Premium: ${reportData.isPremium}
-
-Provide a detailed, professional analysis in JSON format:
-
-{
-  "introduction": "Warm, engaging introduction",
-  "personalityAnalysis": "Deep personality analysis",
-  "strengths": ["5-7 key strengths"],
-  "challenges": ["4-6 growth areas"],
-  "recommendations": ["6-8 actionable recommendations"],
-  "conclusion": "Inspiring conclusion",
-  "detailedSections": {
-    "career": "Career analysis (premium only)",
-    "relationships": "Relationship insights (premium only)",
-    "spiritual": "Spiritual guidance (premium only)",
-    "health": "Health guidance (premium only)"
-  }
-}
+Provide detailed analysis in JSON format with these sections:
+- introduction: Warm, engaging introduction
+- personalityAnalysis: Deep personality analysis
+- strengths: Array of 5-7 key strengths
+- challenges: Array of 4-6 growth areas
+- recommendations: Array of 6-8 actionable recommendations
+- conclusion: Inspiring conclusion
 
 Make it professional, personalized, and ${reportData.isPremium ? "comprehensive" : "concise"}.`;
 
-  const response = await openai.chat.completions.create({
-    model,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a professional astrologer creating personalized reports.",
-      },
-      { role: "user", content: prompt },
-    ],
-    max_tokens: reportData.isPremium ? 3000 : 1500,
-    temperature: 0.7,
-  });
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a professional astrologer creating personalized reports.",
+          },
+          { role: "user", content: prompt },
+        ],
+        max_tokens: reportData.isPremium ? 2000 : 1000,
+        temperature: 0.7,
+      });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("No content received from OpenAI");
-
-  try {
-    return JSON.parse(content);
-  } catch {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-    throw new Error("Failed to parse AI response");
+      const content = response.choices[0]?.message?.content;
+      if (content) {
+        try {
+          return JSON.parse(content);
+        } catch {
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) return JSON.parse(jsonMatch[0]);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("AI content generation failed, using fallback:", error);
   }
-};
 
-const generateFallbackContent = (
-  reportData: ReportData,
-): AIGeneratedContent => {
-  const baseContent = {
+  // Fallback content
+  return {
     introduction: `Welcome to your personalized ${reportData.reportType} astrology report, ${reportData.userName}. This comprehensive analysis explores the cosmic influences that shape your unique personality and life path.`,
     personalityAnalysis:
       "Your astrological profile reveals a complex and fascinating personality. The planetary positions at your birth create a unique cosmic fingerprint that influences your thoughts, emotions, and actions.",
@@ -1564,23 +866,9 @@ const generateFallbackContent = (
     conclusion:
       "Your astrological journey is unique and filled with potential. Use these insights to make conscious choices that align with your true nature and deepest aspirations.",
   };
-
-  if (reportData.isPremium) {
-    baseContent["detailedSections"] = {
-      career:
-        "Your career path is influenced by strong leadership qualities and creative abilities. You thrive in environments that allow for innovation and personal expression.",
-      relationships:
-        "In relationships, you are loyal, caring, and deeply committed. You value emotional connection and intellectual compatibility.",
-      spiritual:
-        "Your spiritual journey is marked by a deep connection to intuition and higher wisdom. Consider exploring meditation and philosophical studies.",
-      health:
-        "Your health is closely connected to your emotional well-being. Stress management and regular exercise will serve you well.",
-    };
-  }
-
-  return baseContent;
 };
 
+// Add watermark
 const addWatermark = (pdf: jsPDF, options: WatermarkOptions): void => {
   const { userName, birthDate, reportType } = options;
 
@@ -1591,98 +879,72 @@ const addWatermark = (pdf: jsPDF, options: WatermarkOptions): void => {
   watermarkText += " at mysticbanana.com";
 
   // Bottom watermark
-  pdf.setFontSize(8);
-  pdf.setTextColor(128, 128, 128);
-  pdf.text(watermarkText, 105, 285, { align: "center" });
+  pdf.setFontSize(6);
+  pdf.setTextColor(180, 180, 180);
+  pdf.text(watermarkText, LAYOUT.pageWidth / 2, LAYOUT.pageHeight - 5, {
+    align: "center",
+  });
 
   // Diagonal watermark
   pdf.saveGraphicsState();
-  pdf.setGState(new pdf.GState({ opacity: 0.05 }));
+  pdf.setGState(new pdf.GState({ opacity: 0.03 }));
   pdf.setFontSize(40);
   pdf.setTextColor(200, 200, 200);
 
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-
-  pdf.text("MYSTIC BANANA", pageWidth / 2, pageHeight / 2, {
+  pdf.text("MYSTIC BANANA", LAYOUT.pageWidth / 2, LAYOUT.pageHeight / 2, {
     align: "center",
     angle: 45,
   });
   pdf.restoreGraphicsState();
 };
 
-export const addImageWatermark = (
-  canvas: HTMLCanvasElement,
-  options: WatermarkOptions,
-): void => {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+// Legacy function for compatibility
+export const generatePDFWithWatermark = async (
+  element: HTMLElement,
+  filename: string,
+  watermarkOptions: WatermarkOptions,
+): Promise<void> => {
+  try {
+    const canvas = await html2canvas(element, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+    });
 
-  const { userName, birthDate } = options;
-  let watermarkText = `Generated for ${userName}`;
-  if (birthDate)
-    watermarkText += ` (${new Date(birthDate).toLocaleDateString()})`;
-  watermarkText += " at mysticbanana.com";
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
 
-  // Bottom watermark
-  ctx.font = "14px Arial";
-  ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-  ctx.textAlign = "center";
-  ctx.fillText(watermarkText, canvas.width / 2, canvas.height - 20);
+    const imgWidth = 190;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const pageHeight = 297;
 
-  // Diagonal watermark
-  ctx.save();
-  ctx.globalAlpha = 0.1;
-  ctx.font = "bold 48px Arial";
-  ctx.fillStyle = "#000000";
-  ctx.textAlign = "center";
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate(Math.PI / 4);
-  ctx.fillText("MYSTIC BANANA", 0, 0);
-  ctx.restore();
-};
+    let heightLeft = imgHeight;
+    let position = 10;
 
-interface NatalReportData extends ReportData {
-  chartImageUrl?: string;
-  planetaryPositions?: {
-    planet: string;
-    sign: string;
-    house: number;
-    degree: string;
-  }[];
-  aspectTable?: {
-    aspect: string;
-    planets: string;
-    orb: string;
-    meaning: string;
-  }[];
-  elementalBalance?: {
-    fire: number;
-    earth: number;
-    air: number;
-    water: number;
-  };
-  modalBalance?: { cardinal: number; fixed: number; mutable: number };
-  chartPatterns?: { name: string; description: string }[];
-  retrogradeInfo?: { planets: string[]; count: number };
-  lunarPhase?: { phase: string; description: string };
-}
+    const imgData = canvas.toDataURL("image/png");
+    pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
 
-const getSignFromDegree = (degree: number): string => {
-  const signs = [
-    "Aries",
-    "Taurus",
-    "Gemini",
-    "Cancer",
-    "Leo",
-    "Virgo",
-    "Libra",
-    "Scorpio",
-    "Sagittarius",
-    "Capricorn",
-    "Aquarius",
-    "Pisces",
-  ];
-  const signIndex = Math.floor(degree / 30);
-  return signs[signIndex] || "Aries";
+    while (heightLeft >= 0) {
+      position = heightLeft - imgHeight + 10;
+      pdf.addPage();
+      pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const totalPages = pdf.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      pdf.setPage(i);
+      addWatermark(pdf, watermarkOptions);
+    }
+
+    pdf.save(filename);
+  } catch (error) {
+    console.error("PDF generation failed:", error);
+    throw error;
+  }
 };

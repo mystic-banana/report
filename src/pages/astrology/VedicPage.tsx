@@ -10,6 +10,7 @@ import {
   Calendar,
   BookOpen,
   Eye,
+  Crown,
 } from "lucide-react";
 import PageLayout from "../../components/layout/PageLayout";
 import { useAuthStore } from "../../store/authStore";

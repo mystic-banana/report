@@ -17,6 +17,7 @@ import {
   Zap,
   CheckCircle,
   AlertCircle,
+  Trash2,
 } from "lucide-react";
 import PageLayout from "../../components/layout/PageLayout";
 import { useAstrologyStore } from "../../store/astrologyStore";
@@ -36,12 +37,18 @@ const ReportsPage: React.FC = () => {
     createReport,
     createVedicReport,
     exportReportToPDF,
+    deleteReport,
   } = useAstrologyStore();
 
   const [selectedChart, setSelectedChart] = useState<string>("");
   const [selectedReportType, setSelectedReportType] = useState<string>("");
   const [reportTitle, setReportTitle] = useState<string>("");
   const [isCreating, setIsCreating] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
+    null,
+  );
+  const reportsPerPage = 10;
 
   const reportTypes = [
     {
@@ -206,17 +213,51 @@ const ReportsPage: React.FC = () => {
       fetchBirthCharts(user.id);
       fetchReports(user.id);
 
-      // Check for chartId in URL params
+      // Check for chartId and type in URL params
       const urlParams = new URLSearchParams(window.location.search);
       const chartIdFromUrl = urlParams.get("chartId");
+      const typeFromUrl = urlParams.get("type");
 
       if (chartIdFromUrl) {
         setSelectedChart(chartIdFromUrl);
+
+        // Auto-trigger report generation if type is specified
+        if (
+          typeFromUrl &&
+          (typeFromUrl === "vedic" || typeFromUrl === "vedic-premium")
+        ) {
+          setSelectedReportType(typeFromUrl);
+          setReportTitle(`${user.name || "User"}'s Vedic Astrology Report`);
+
+          // Auto-generate the report
+          setTimeout(() => {
+            handleCreateVedicReport(
+              chartIdFromUrl,
+              typeFromUrl === "vedic-premium",
+            );
+          }, 1000);
+        }
       } else if (birthCharts.length > 0 && !selectedChart) {
         setSelectedChart(birthCharts[0].id);
       }
     }
   }, [isAuthenticated, user, birthCharts.length]);
+
+  const handleCreateVedicReport = async (
+    chartId: string,
+    isPremium: boolean,
+  ) => {
+    setIsCreating(true);
+    try {
+      await createVedicReport(chartId, isPremium);
+      // Clear URL params after successful creation
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (error) {
+      console.error("Error creating Vedic report:", error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const handleCreateReport = async () => {
     if (!selectedChart || !selectedReportType || !reportTitle.trim()) {
@@ -249,6 +290,23 @@ const ReportsPage: React.FC = () => {
       window.open(pdfUrl, "_blank");
     }
   };
+
+  const handleDeleteReport = async (reportId: string) => {
+    if (deleteReport) {
+      await deleteReport(reportId);
+      setShowDeleteConfirm(null);
+      // Refresh reports
+      if (user) {
+        fetchReports(user.id);
+      }
+    }
+  };
+
+  // Calculate pagination
+  const totalPages = Math.ceil(reports.length / reportsPerPage);
+  const startIndex = (currentPage - 1) * reportsPerPage;
+  const endIndex = startIndex + reportsPerPage;
+  const currentReports = reports.slice(startIndex, endIndex);
 
   if (!isAuthenticated) {
     return (
@@ -526,11 +584,18 @@ const ReportsPage: React.FC = () => {
               {/* Existing Reports */}
               {reports.length > 0 ? (
                 <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
-                  <h3 className="text-xl font-semibold text-white mb-6">
-                    Your Reports
-                  </h3>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-semibold text-white">
+                      Your Reports ({reports.length})
+                    </h3>
+                    {totalPages > 1 && (
+                      <div className="text-sm text-gray-400">
+                        Page {currentPage} of {totalPages}
+                      </div>
+                    )}
+                  </div>
                   <div className="space-y-4">
-                    {reports.map((report) => {
+                    {currentReports.map((report) => {
                       const chart = birthCharts.find(
                         (c) => c.id === report.birth_chart_id,
                       );
@@ -573,6 +638,13 @@ const ReportsPage: React.FC = () => {
                               >
                                 PDF
                               </Button>
+                              <button
+                                onClick={() => setShowDeleteConfirm(report.id)}
+                                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="Delete Report"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
                           <p className="text-gray-300 text-sm line-clamp-3">
@@ -655,6 +727,35 @@ const ReportsPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-white mb-4">
+              Delete Report
+            </h3>
+            <p className="text-gray-300 mb-6">
+              Are you sure you want to delete this report? This action cannot be
+              undone.
+            </p>
+            <div className="flex items-center justify-end space-x-4">
+              <Button
+                variant="ghost"
+                onClick={() => setShowDeleteConfirm(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => handleDeleteReport(showDeleteConfirm)}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 };
