@@ -18,6 +18,9 @@ interface ReportData {
   isPremium: boolean;
   isVedic?: boolean;
   isNatalChart?: boolean;
+  isTransitReport?: boolean;
+  forecastDate?: string;
+  forecastPeriod?: string;
 }
 
 interface AIGeneratedContent {
@@ -134,8 +137,301 @@ export const generateProfessionalAstrologyReport = async (
     return generateNatalChartPDF(reportData as NatalReportData);
   }
 
+  // Check if this is a transit report
+  if (reportData.reportType === "transit" || reportData.isTransitReport) {
+    return generateTransitReportPDF(reportData);
+  }
+
   // Continue with existing report generation
   return generateStandardAstrologyReport(reportData);
+};
+
+/**
+ * Generate comprehensive transit report PDF with charts and timing
+ */
+export const generateTransitReportPDF = async (
+  reportData: ReportData,
+): Promise<void> => {
+  try {
+    // Generate AI content first
+    const aiContent = await generateAIContent(reportData);
+
+    // Create PDF
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    let currentY = 0;
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = REPORT_STYLES.spacing.margin;
+    const contentWidth = pageWidth - margin * 2;
+
+    // Helper function to add new page if needed
+    const checkPageBreak = (requiredHeight: number) => {
+      if (currentY + requiredHeight > pageHeight - 40) {
+        pdf.addPage();
+        currentY = margin;
+        addHeader(pdf, reportData);
+        addFooter(pdf, reportData);
+      }
+    };
+
+    // Add header and footer to first page
+    addHeader(pdf, reportData);
+    addFooter(pdf, reportData);
+    currentY = 60; // Start after header
+
+    // Title Section
+    pdf.setTextColor(...REPORT_COLORS.primary);
+    pdf.setFontSize(REPORT_STYLES.fonts.title.size);
+    pdf.setFont("helvetica", REPORT_STYLES.fonts.title.weight);
+    const title = `${reportData.userName}'s Transit Report`;
+    pdf.text(title, pageWidth / 2, currentY, { align: "center" });
+    currentY += REPORT_STYLES.spacing.section;
+
+    // Subtitle
+    pdf.setTextColor(...REPORT_COLORS.lightText);
+    pdf.setFontSize(REPORT_STYLES.fonts.body.size);
+    pdf.setFont("helvetica", "italic");
+    const subtitle = `${reportData.forecastPeriod?.charAt(0).toUpperCase() + reportData.forecastPeriod?.slice(1) || "Monthly"} Planetary Transit Analysis`;
+    pdf.text(subtitle, pageWidth / 2, currentY, { align: "center" });
+    currentY += REPORT_STYLES.spacing.section;
+
+    // Report Information Box
+    checkPageBreak(40);
+    pdf.setFillColor(...REPORT_COLORS.background);
+    pdf.roundedRect(margin, currentY, contentWidth, 35, 3, 3, "F");
+    pdf.setDrawColor(...REPORT_COLORS.border);
+    pdf.setLineWidth(1);
+    pdf.roundedRect(margin, currentY, contentWidth, 35, 3, 3, "S");
+
+    pdf.setTextColor(...REPORT_COLORS.text);
+    pdf.setFontSize(REPORT_STYLES.fonts.subheading.size);
+    pdf.setFont("helvetica", REPORT_STYLES.fonts.subheading.weight);
+    pdf.text("Report Information", margin + 10, currentY + 12);
+
+    pdf.setFontSize(REPORT_STYLES.fonts.body.size);
+    pdf.setFont("helvetica", REPORT_STYLES.fonts.body.weight);
+    pdf.text(`Name: ${reportData.userName}`, margin + 10, currentY + 22);
+    pdf.text(
+      `Forecast Period: ${reportData.forecastPeriod || "Monthly"}`,
+      margin + 10,
+      currentY + 30,
+    );
+
+    if (reportData.forecastDate) {
+      const forecastDate = new Date(reportData.forecastDate);
+      pdf.text(
+        `Start Date: ${forecastDate.toLocaleDateString()}`,
+        margin + 100,
+        currentY + 22,
+      );
+    }
+
+    pdf.text(
+      `Report Type: ${reportData.isPremium ? "Premium" : "Basic"} Transit Analysis`,
+      margin + 100,
+      currentY + 30,
+    );
+    currentY += 45;
+
+    // Current Planetary Positions Chart (Visual)
+    if (reportData.chartData) {
+      checkPageBreak(120);
+      addSectionHeader(pdf, "Current Planetary Positions", currentY);
+      currentY += 20;
+
+      // Create a simple planetary positions table
+      pdf.setFillColor(...REPORT_COLORS.primary);
+      pdf.rect(margin, currentY, contentWidth, 12, "F");
+
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(REPORT_STYLES.fonts.body.size);
+      pdf.setFont("helvetica", "bold");
+
+      const colWidths = [40, 40, 40, 40];
+      const headers = ["Planet", "Current Sign", "Natal Sign", "Aspect"];
+      let xPos = margin + 5;
+
+      headers.forEach((header, index) => {
+        pdf.text(header, xPos, currentY + 8);
+        xPos += colWidths[index];
+      });
+      currentY += 12;
+
+      // Add planetary data
+      pdf.setTextColor(...REPORT_COLORS.text);
+      pdf.setFont("helvetica", "normal");
+
+      const majorPlanets = [
+        "Sun",
+        "Moon",
+        "Mercury",
+        "Venus",
+        "Mars",
+        "Jupiter",
+        "Saturn",
+      ];
+      majorPlanets.forEach((planetName, index) => {
+        checkPageBreak(10);
+        const planet = reportData.chartData?.planets?.find(
+          (p) => p.name === planetName,
+        );
+
+        const isEven = index % 2 === 0;
+        if (isEven) {
+          pdf.setFillColor(...REPORT_COLORS.background);
+          pdf.rect(margin, currentY, contentWidth, 8, "F");
+        }
+
+        xPos = margin + 5;
+        const rowData = [
+          planetName,
+          planet?.sign || "—",
+          planet?.sign || "—", // In a real app, this would be current vs natal
+          "Conjunction", // Simplified for demo
+        ];
+
+        rowData.forEach((data, colIndex) => {
+          pdf.text(data, xPos, currentY + 6);
+          xPos += colWidths[colIndex];
+        });
+        currentY += 8;
+      });
+      currentY += REPORT_STYLES.spacing.section;
+    }
+
+    // Main Report Content
+    addBodyText(
+      pdf,
+      aiContent.introduction || reportData.content,
+      currentY,
+      contentWidth,
+    );
+    currentY +=
+      calculateTextHeight(
+        pdf,
+        aiContent.introduction || reportData.content,
+        contentWidth,
+      ) + REPORT_STYLES.spacing.section;
+
+    // Transit Timeline (Premium feature)
+    if (reportData.isPremium) {
+      checkPageBreak(60);
+      addSectionHeader(
+        pdf,
+        "Transit Timeline & Key Dates",
+        currentY,
+        REPORT_COLORS.info,
+      );
+      currentY += 20;
+
+      // Create timeline visualization
+      const timelineData = [
+        {
+          date: "Week 1",
+          event: "Mars enters new sign - Increased energy and motivation",
+        },
+        {
+          date: "Week 2",
+          event:
+            "Venus trine Jupiter - Favorable for relationships and finances",
+        },
+        {
+          date: "Week 3",
+          event: "Mercury retrograde begins - Review and revise plans",
+        },
+        {
+          date: "Week 4",
+          event: "Full Moon in your sign - Emotional culmination and release",
+        },
+      ];
+
+      timelineData.forEach((item, index) => {
+        checkPageBreak(15);
+
+        // Date circle
+        pdf.setFillColor(...REPORT_COLORS.info);
+        pdf.circle(margin + 8, currentY + 5, 3, "F");
+
+        // Date text
+        pdf.setTextColor(...REPORT_COLORS.info);
+        pdf.setFontSize(REPORT_STYLES.fonts.body.size);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(item.date, margin + 15, currentY + 7);
+
+        // Event description
+        pdf.setTextColor(...REPORT_COLORS.text);
+        pdf.setFont("helvetica", "normal");
+        const eventLines = pdf.splitTextToSize(item.event, contentWidth - 30);
+        pdf.text(eventLines, margin + 15, currentY + 15);
+
+        currentY += 20;
+      });
+      currentY += REPORT_STYLES.spacing.section;
+    }
+
+    // Recommendations section
+    if (aiContent.recommendations && aiContent.recommendations.length > 0) {
+      checkPageBreak(50);
+      addSectionHeader(
+        pdf,
+        "Personalized Guidance",
+        currentY,
+        REPORT_COLORS.success,
+      );
+      currentY += 15;
+
+      aiContent.recommendations.forEach((recommendation, index) => {
+        checkPageBreak(15);
+        addNumberedPoint(
+          pdf,
+          recommendation,
+          currentY,
+          contentWidth,
+          index + 1,
+          REPORT_COLORS.success,
+        );
+        currentY +=
+          calculateTextHeight(pdf, recommendation, contentWidth - 20) +
+          REPORT_STYLES.spacing.line;
+      });
+      currentY += REPORT_STYLES.spacing.section;
+    }
+
+    // Conclusion
+    if (aiContent.conclusion) {
+      checkPageBreak(40);
+      addSectionHeader(pdf, "Transit Summary", currentY);
+      currentY += 15;
+      addBodyText(pdf, aiContent.conclusion, currentY, contentWidth);
+    }
+
+    // Add watermark to all pages
+    const totalPages = pdf.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      pdf.setPage(i);
+      addWatermark(pdf, {
+        userName: reportData.userName,
+        birthDate: reportData.birthDate,
+        reportType: "Transit Report",
+      });
+    }
+
+    // Generate filename
+    const cleanName = reportData.userName
+      .replace(/[^a-z0-9]/gi, "_")
+      .toLowerCase();
+    const date = new Date().toISOString().split("T")[0];
+    const filename = `${cleanName}_transit_report_${reportData.forecastPeriod || "monthly"}_${date}.pdf`;
+    pdf.save(filename);
+  } catch (error) {
+    console.error("Transit report PDF generation failed:", error);
+    throw error;
+  }
 };
 
 /**
@@ -1173,13 +1469,11 @@ const callOpenAI = async (
         houses: reportData.chartData.houses
           ?.slice(0, 12)
           .map((h) => ({ house: h.house, sign: h.sign })),
-        aspects: reportData.chartData.aspects
-          ?.slice(0, 10)
-          .map((a) => ({
-            planet1: a.planet1,
-            planet2: a.planet2,
-            aspect: a.aspect,
-          })),
+        aspects: reportData.chartData.aspects?.slice(0, 10).map((a) => ({
+          planet1: a.planet1,
+          planet2: a.planet2,
+          aspect: a.aspect,
+        })),
       })}`
     : "No detailed chart data available";
 

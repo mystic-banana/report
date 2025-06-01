@@ -904,6 +904,8 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
         report.report_type === "birth-chart" ||
         report.report_type.includes("natal");
 
+      const isTransitReport = report.report_type === "transit";
+
       const reportData = {
         title: report.title,
         content: report.content,
@@ -913,6 +915,9 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
         chartData: report.birth_charts?.chart_data,
         isPremium: report.is_premium || false,
         isNatalChart,
+        isTransitReport,
+        forecastDate: report.forecast_date,
+        forecastPeriod: report.forecast_period,
         // Additional data for natal charts
         ...(isNatalChart && {
           planetaryPositions: report.birth_charts?.chart_data?.planets?.map(
@@ -1198,4 +1203,19 @@ const generateAutoReportTitle = (
 
   const typeName = typeNames[reportType] || "Astrology Report";
   return userName + "'s " + typeName;
+};
+
+// Add transit report type to the type names
+const addTransitReportType = () => {
+  const typeNames = {
+    natal: "Natal Chart Report",
+    personality: "Personality Profile",
+    career: "Career & Life Purpose Report",
+    relationships: "Love & Relationships Report",
+    yearly: "Yearly Forecast Report",
+    spiritual: "Spiritual Path Report",
+    vedic: "Vedic Astrology Report",
+    transit: "Transit Forecast Report",
+  };
+  return typeNames;
 };

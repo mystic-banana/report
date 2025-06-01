@@ -1,4 +1,8 @@
-import { corsHeaders } from "../_shared/cors.ts";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -65,7 +69,10 @@ Generate a detailed Vedic astrology report with all the core sections mentioned.
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-pica-secret": Deno.env.get("PICA_SECRET_KEY") || "",
+          "x-pica-secret":
+            Deno.env.get("VITE_PICA_SECRET_KEY") ||
+            Deno.env.get("PICA_SECRET_KEY") ||
+            "",
           "x-pica-connection-key":
             "live::openai::default::516d4faffd9b454aab0fdd853fa26304|7ed2fb4a-d7cf-4d64-a380-5fb5dc475b34",
           "x-pica-action-id":

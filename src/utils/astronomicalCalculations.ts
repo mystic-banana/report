@@ -1597,7 +1597,26 @@ function isCombusted(
   return distance < (combustionDistances[planet.name] || 10);
 }
 
-const generateFallbackContent = (
+// Types for AI-generated content
+export interface ReportData {
+  birthData: BirthData;
+  vedicChart: VedicChartData;
+  birthChart: BirthChartData;
+}
+
+export interface AIGeneratedContent {
+  introduction: string;
+  janmaKundali: string;
+  bhavaAnalysis: string;
+  grahaAnalysis: string;
+  dashaAnalysis: string;
+  nakshatraInsights: string;
+  yogasAndDoshas: string;
+  remedies: string;
+  conclusion: string;
+}
+
+export const generateFallbackContent = (
   reportData: ReportData,
 ): AIGeneratedContent => {
   return {
