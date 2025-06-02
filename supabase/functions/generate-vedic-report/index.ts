@@ -14,10 +14,21 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log("Vedic report generation started");
     const { birthData, chartData, isPremium, reportType } = await req.json();
+    console.log("Request data received:", {
+      hasbirthData: !!birthData,
+      hasChartData: !!chartData,
+      isPremium,
+      reportType,
+    });
 
     // Validate required data
     if (!birthData || !chartData) {
+      console.error("Missing required data:", {
+        birthData: !!birthData,
+        chartData: !!chartData,
+      });
       return new Response(
         JSON.stringify({ error: "Birth data and chart data are required" }),
         {
@@ -28,96 +39,269 @@ Deno.serve(async (req) => {
     }
 
     // Prepare comprehensive Vedic astrology prompt
-    const systemPrompt = `You are an expert Vedic astrologer and software developer. Generate detailed, professional, and accurate Vedic astrology report sections based on user birth details and chart data. 
+    const systemPrompt = `You are an expert Vedic astrologer with deep knowledge of Jyotish shastra. Generate a detailed, professional, and spiritually meaningful Vedic astrology report based on the provided birth details and chart data.
 
-Include these core sections:
-1. Janma Kundali (Birth Chart) - Lagna chart, Navamsa chart, planetary positions with degrees, retrograde status, combustion, exaltation/debilitation
-2. Bhava (House) Analysis - Lagna analysis, interpretation of each house with its ruler and planets
-3. Graha (Planet) Analysis - Natural and functional significations, strength analysis
-4. Vimshottari Dasha Periods - Maha Dasha and Antar Dasha timelines with interpretations
-5. Nakshatra (Lunar Mansion) Insights - Birth nakshatra, pada, personality traits
-6. Yogas and Doshas - Important yogas (Raj Yoga, Dhana Yoga, etc.) and malefic doshas
-7. Planetary Strength and Ashtakavarga - Shadbala chart, Ashtakavarga points
-8. Transits (Gochar) - Effects of major transiting planets, Sade Sati report
-9. Remedies and Spiritual Guidance - Mantras, gemstones, yantras, personalized recommendations
+${isPremium ? "PREMIUM REPORT - Include ALL sections with comprehensive analysis:" : "BASIC REPORT - Focus on essential insights:"}
 
-Provide ${isPremium ? "comprehensive detailed analysis with all sections" : "basic analysis focusing on key insights"}.
+1. **Janma Kundali (Birth Chart Analysis)**
+   - Lagna (Ascendant) significance and characteristics
+   - Planetary positions in signs and houses with degrees
+   - Retrograde planets and their effects
+   - Exaltation, debilitation, and planetary dignity
+   - ${isPremium ? "Navamsa (D9) chart analysis for marriage and spirituality" : "Basic planetary placements"}
 
-Format the output as JSON with clear section keys. Make interpretations personal, accurate, and spiritually meaningful.`;
+2. **Bhava (House) Analysis**
+   - Detailed interpretation of each house (1st through 12th)
+   - House lords and their placements
+   - Planetary influences on life areas
+   - ${isPremium ? "Bhava strength (Bala) calculations" : "Key house significances"}
 
-    const userPrompt = `Generate a comprehensive Vedic astrology report for:
+3. **Graha (Planetary) Analysis**
+   - Natural and functional benefics/malefics
+   - Planetary strengths and weaknesses
+   - Karaka planets for different life domains
+   - ${isPremium ? "Shadbala and Ashtakavarga analysis" : "Basic planetary effects"}
 
-Name: ${birthData.name}
-Birth Date: ${birthData.birthDate}
-Birth Time: ${birthData.birthTime || "Not provided"}
-Birth Location: ${birthData.location?.city}, ${birthData.location?.country}
+4. **Nakshatra Insights**
+   - Birth nakshatra (lunar mansion) and pada
+   - Ruling deity, symbol, and characteristics
+   - Personality traits and spiritual inclinations
+   - ${isPremium ? "Nakshatra compatibility and remedial measures" : "Basic nakshatra influence"}
 
-Chart Data Summary:
-- Planets: ${JSON.stringify(chartData.planets?.slice(0, 10).map((p) => ({ name: p.name, sign: p.sign, house: p.house, degree: p.degree })))}
-- Houses: ${JSON.stringify(chartData.houses?.slice(0, 12).map((h) => ({ house: h.house, sign: h.sign })))}
-- Major Aspects: ${JSON.stringify(chartData.aspects?.slice(0, 8).map((a) => ({ planet1: a.planet1, planet2: a.planet2, aspect: a.aspect })))}
+5. **Dasha System**
+   - Current Vimshottari Mahadasha and Antardasha
+   - Dasha timeline and planetary periods
+   - ${isPremium ? "Detailed dasha predictions and timing of events" : "Current dasha effects"}
 
-Report Type: ${reportType || "vedic"}
-User Tier: ${isPremium ? "Premium" : "Free"}
+${
+  isPremium
+    ? `6. **Yogas and Doshas**
+   - Beneficial yogas (Raj Yoga, Dhana Yoga, Gaja Kesari, etc.)
+   - Malefic doshas (Manglik, Kaal Sarp, Pitra Dosha)
+   - Remedial measures for doshas
 
-Generate a detailed Vedic astrology report with all the core sections mentioned. Include practical guidance and spiritual insights.`;
+7. **Transits and Sade Sati**
+   - Current planetary transits (Gochar)
+   - Sade Sati analysis if applicable
+   - Upcoming significant transits
 
-    // Try OpenAI API first, then fallback to mock content
+8. **Spiritual Path and Remedies**
+   - Personalized mantras and spiritual practices
+   - Gemstone recommendations
+   - Yantra suggestions
+   - Charitable activities and fasting
+   - Temple worship recommendations`
+    : ""
+}
+
+9. **Remedies and Guidance**
+   - Practical remedial measures
+   - Spiritual practices for growth
+   - Lifestyle recommendations
+   - Auspicious timing suggestions
+
+10. **Life Purpose and Dharma**
+    - Soul's journey and karmic lessons
+    - Life purpose based on chart analysis
+    - Spiritual evolution path
+
+Format as JSON with these keys: introduction, janmaKundali, bhavaAnalysis, grahaAnalysis, nakshatraInsights, dashaAnalysis, ${isPremium ? "yogasAndDoshas, planetaryStrengths, transits, " : ""}remedies, conclusion.
+
+Make the analysis personal, accurate, and spiritually uplifting. Use traditional Vedic terminology with clear explanations.`;
+
+    const userPrompt = `Create a ${isPremium ? "comprehensive premium" : "detailed basic"} Vedic astrology report for:
+
+**Personal Information:**
+- Name: ${birthData.name}
+- Birth Date: ${birthData.birthDate}
+- Birth Time: ${birthData.birthTime || "Time not provided (use solar chart principles)"}
+- Birth Location: ${birthData.location?.city}, ${birthData.location?.country}
+- Coordinates: ${birthData.location?.latitude}°, ${birthData.location?.longitude}°
+
+**Astrological Data:**
+- Planetary Positions: ${JSON.stringify(
+      chartData.planets?.slice(0, 10).map((p) => ({
+        planet: p.name,
+        sign: p.sign,
+        house: p.house,
+        degree: Math.round(p.degree * 100) / 100,
+        retrograde: p.retrograde || false,
+      })),
+    )}
+
+- House Cusps: ${JSON.stringify(
+      chartData.houses?.slice(0, 12).map((h) => ({
+        house: h.house,
+        sign: h.sign,
+        cusp: h.cusp || 0,
+      })),
+    )}
+
+- Major Aspects: ${JSON.stringify(
+      chartData.aspects?.slice(0, 8).map((a) => ({
+        planet1: a.planet1,
+        planet2: a.planet2,
+        aspect: a.aspect,
+        orb: Math.round(a.orb * 100) / 100,
+      })),
+    )}
+
+**Report Requirements:**
+- Analysis Level: ${isPremium ? "Premium (comprehensive with all sections)" : "Basic (essential insights)"}
+- Focus: Traditional Vedic principles with practical guidance
+- Include: Spiritual insights, karmic lessons, and remedial measures
+- Format: Well-structured JSON with clear sections
+
+Provide a meaningful, accurate, and spiritually enriching analysis that honors the ancient wisdom of Jyotish while being accessible to modern seekers.`;
+
+    // Try OpenAI API with robust error handling and retry mechanism
     let content = "";
+    const maxRetries = 3;
+    let retryCount = 0;
+    let lastError = null;
 
-    try {
-      // Try OpenAI API
-      const openaiKey =
-        Deno.env.get("VITE_OPENAI_API_KEY") || Deno.env.get("OPENAI_API_KEY");
+    while (retryCount < maxRetries && !content) {
+      try {
+        // Try PICA passthrough API for OpenAI
+        const picaSecret = Deno.env.get("PICA_SECRET_KEY");
+        const picaConnectionKey = Deno.env.get("PICA_OPENAI_CONNECTION_KEY");
+        console.log(`PICA API attempt ${retryCount + 1}/${maxRetries}:`, {
+          hasSecret: !!picaSecret,
+          hasConnectionKey: !!picaConnectionKey,
+        });
 
-      if (openaiKey) {
-        const response = await fetch(
-          "https://api.openai.com/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${openaiKey}`,
+        if (picaSecret && picaConnectionKey) {
+          console.log("Making PICA API call...");
+
+          // Add timeout to prevent hanging
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+          const response = await fetch(
+            "https://api.picaos.com/v1/passthrough/chat/completions",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-pica-secret": picaSecret,
+                "x-pica-connection-key": picaConnectionKey,
+                "x-pica-action-id":
+                  "conn_mod_def::GDzgi1QfvM4::4OjsWvZhRxmAVuLAuWgfVA",
+              },
+              body: JSON.stringify({
+                model: "gpt-4o",
+                messages: [
+                  { role: "system", content: systemPrompt },
+                  { role: "user", content: userPrompt },
+                ],
+                max_completion_tokens: isPremium ? 3000 : 1500,
+                temperature: 0.7,
+              }),
+              signal: controller.signal,
             },
-            body: JSON.stringify({
-              model: "gpt-4o-mini",
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt },
-              ],
-              max_tokens: isPremium ? 3000 : 1500,
-              temperature: 0.7,
-            }),
-          },
+          );
+
+          clearTimeout(timeoutId);
+
+          if (response.status === 429) {
+            // Rate limit hit - implement exponential backoff
+            const backoffDelay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+            console.log(
+              `Rate limit hit, waiting ${backoffDelay}ms before retry...`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+            retryCount++;
+            continue;
+          }
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error("PICA API error details:", {
+              status: response.status,
+              statusText: response.statusText,
+              errorText,
+              attempt: retryCount + 1,
+            });
+
+            // For server errors (5xx), retry; for client errors (4xx), don't retry
+            if (response.status >= 500 && retryCount < maxRetries - 1) {
+              retryCount++;
+              await new Promise((resolve) =>
+                setTimeout(resolve, 1000 * retryCount),
+              );
+              continue;
+            }
+
+            throw new Error(
+              `PICA API error: ${response.status} ${response.statusText} - ${errorText}`,
+            );
+          }
+
+          const result = await response.json();
+          console.log("PICA API response received:", {
+            hasChoices: !!result.choices,
+            choicesLength: result.choices?.length,
+            hasUsage: !!result.usage,
+            attempt: retryCount + 1,
+          });
+
+          content = result.choices?.[0]?.message?.content;
+
+          if (!content) {
+            console.error("No content in API response:", result);
+            throw new Error("No content received from AI service");
+          }
+          console.log("AI content received, length:", content.length);
+          break; // Success, exit retry loop
+        } else {
+          console.warn("PICA credentials not found, using fallback content");
+          break; // No credentials, exit retry loop
+        }
+      } catch (error) {
+        lastError = error;
+        console.warn(
+          `PICA API attempt ${retryCount + 1} failed:`,
+          error.message,
         );
 
-        if (!response.ok) {
-          throw new Error(
-            `PICA API error: ${response.status} ${response.statusText}`,
-          );
+        if (error.name === "AbortError") {
+          console.warn("Request timed out");
         }
 
-        const result = await response.json();
-        const content = result.choices?.[0]?.message?.content;
+        retryCount++;
 
-        if (!content) {
-          throw new Error("No content received from AI service");
+        if (retryCount < maxRetries) {
+          const backoffDelay = Math.pow(2, retryCount - 1) * 1000;
+          console.log(`Retrying in ${backoffDelay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay));
         }
       }
-    } catch (error) {
-      console.warn("OpenAI API failed, using fallback content:", error);
+    }
+
+    if (!content && lastError) {
+      console.error(
+        `All ${maxRetries} API attempts failed. Last error:`,
+        lastError.message,
+      );
     }
 
     // Fallback to comprehensive mock content if API fails
     if (!content) {
+      console.log("Using fallback content generation");
       content = generateFallbackVedicContent(birthData, isPremium);
     }
 
     // Try to parse as JSON, fallback to structured text
     let vedicReport;
     try {
+      console.log("Attempting to parse content as JSON");
       vedicReport = JSON.parse(content);
+      console.log("JSON parsing successful");
     } catch (parseError) {
+      console.log(
+        "JSON parsing failed, creating structured response:",
+        parseError,
+      );
       // If not valid JSON, create structured response
       vedicReport = {
         introduction: content.substring(0, 500) + "...",

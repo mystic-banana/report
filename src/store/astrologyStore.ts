@@ -128,6 +128,12 @@ interface AstrologyState {
     date: string,
   ) => Promise<DailyHoroscope | null>;
   generateDailyHoroscopes: (date: string) => Promise<void>;
+  generatePersonalizedHoroscope: (
+    zodiacSign: string,
+    date: string,
+    chartId: string,
+    isPremium?: boolean,
+  ) => Promise<DailyHoroscope | null>;
 
   generateTransitForecast: (
     chartId: string,
@@ -135,6 +141,15 @@ interface AstrologyState {
     period: string,
   ) => Promise<TransitForecast | null>;
   fetchTransitForecasts: (chartId: string) => Promise<void>;
+  generateWeeklyTransitForecast: (chartId: string) => Promise<string | null>;
+
+  // New transit report function
+  generateTransitReport: (
+    chartId: string,
+    forecastDate: string,
+    period: string,
+    isPremium?: boolean,
+  ) => Promise<AstrologyReport | null>;
 
   createReport: (
     chartId: string,
@@ -534,20 +549,49 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
         "Pisces",
       ];
 
-      // Try to generate AI-powered horoscopes
-      let horoscopes;
-      try {
-        const { generateAIHoroscopes } = await import(
-          "../utils/aiContentGenerator"
-        );
-        horoscopes = await generateAIHoroscopes(signs, date);
-      } catch (aiError) {
-        console.warn(
-          "AI horoscope generation failed, using fallback:",
-          aiError,
-        );
-        // Fallback to enhanced mock data
-        horoscopes = signs.map((sign) => {
+      // Generate horoscopes using the new edge function
+      const horoscopes = [];
+
+      for (const sign of signs) {
+        try {
+          const response = await supabase.functions.invoke(
+            "generate-daily-horoscope",
+            {
+              body: {
+                zodiacSign: sign,
+                date,
+                isPremium: false, // Generate free horoscopes for general use
+              },
+            },
+          );
+
+          if (response.data?.horoscope) {
+            const horoscope = response.data.horoscope;
+            horoscopes.push({
+              zodiac_sign: sign,
+              date,
+              content:
+                horoscope.dailyOverview ||
+                horoscope.fullContent ||
+                `Today brings positive energy for ${sign}.`,
+              love_score:
+                horoscope.loveScore || Math.floor(Math.random() * 30) + 70,
+              career_score:
+                horoscope.careerScore || Math.floor(Math.random() * 30) + 70,
+              health_score:
+                horoscope.healthScore || Math.floor(Math.random() * 30) + 70,
+              lucky_numbers: horoscope.luckyNumbers || [
+                Math.floor(Math.random() * 50) + 1,
+                Math.floor(Math.random() * 50) + 1,
+                Math.floor(Math.random() * 50) + 1,
+              ],
+              lucky_colors: horoscope.luckyColors || ["Purple", "Gold"],
+              ai_generated: true,
+            });
+          }
+        } catch (signError) {
+          console.warn(`Failed to generate horoscope for ${sign}:`, signError);
+          // Fallback for individual sign
           const themes = {
             Aries: "energy and leadership",
             Taurus: "stability and material comfort",
@@ -563,7 +607,7 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
             Pisces: "intuition and spiritual connection",
           };
 
-          return {
+          horoscopes.push({
             zodiac_sign: sign,
             date,
             content: `Today highlights ${themes[sign]} for ${sign}. The cosmic energies support your natural talents and encourage you to embrace new opportunities. Trust your instincts and take positive action toward your goals.`,
@@ -577,8 +621,8 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
             ],
             lucky_colors: ["Purple", "Gold"],
             ai_generated: true,
-          };
-        });
+          });
+        }
       }
 
       const { data, error } = await supabase
@@ -595,6 +639,87 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
     } catch (error: any) {
       console.error("Error generating horoscopes:", error);
       set({ error: error.message, loading: false });
+    }
+  },
+
+  generatePersonalizedHoroscope: async (
+    zodiacSign: string,
+    date: string,
+    chartId: string,
+    isPremium: boolean = false,
+  ) => {
+    set({ loading: true, error: null });
+    try {
+      const { user } = useAuthStore.getState();
+      if (!user) {
+        throw new Error("Please sign in to generate personalized horoscopes");
+      }
+
+      // Get birth chart data
+      const { data: chartData, error: chartError } = await supabase
+        .from("birth_charts")
+        .select("*")
+        .eq("id", chartId)
+        .single();
+
+      if (chartError) throw chartError;
+
+      // Call the edge function to generate personalized horoscope
+      const response = await supabase.functions.invoke(
+        "generate-daily-horoscope",
+        {
+          body: {
+            zodiacSign,
+            date,
+            birthChart: chartData.chart_data,
+            currentTransits: [], // TODO: Add current transit data
+            isPremium,
+          },
+        },
+      );
+
+      if (response.error) {
+        throw new Error(
+          response.error.message || "Failed to generate personalized horoscope",
+        );
+      }
+
+      const horoscopeData = response.data?.horoscope;
+      if (!horoscopeData) {
+        throw new Error("No horoscope data received");
+      }
+
+      // Convert to DailyHoroscope format
+      const personalizedHoroscope: DailyHoroscope = {
+        id: `personalized-${zodiacSign}-${date}`,
+        zodiac_sign: zodiacSign,
+        date,
+        content:
+          horoscopeData.dailyOverview ||
+          horoscopeData.fullContent ||
+          "Your personalized horoscope for today.",
+        love_score:
+          horoscopeData.loveScore || Math.floor(Math.random() * 30) + 70,
+        career_score:
+          horoscopeData.careerScore || Math.floor(Math.random() * 30) + 70,
+        health_score:
+          horoscopeData.healthScore || Math.floor(Math.random() * 30) + 70,
+        lucky_numbers: horoscopeData.luckyNumbers || [
+          Math.floor(Math.random() * 50) + 1,
+          Math.floor(Math.random() * 50) + 1,
+          Math.floor(Math.random() * 50) + 1,
+        ],
+        lucky_colors: horoscopeData.luckyColors || ["Purple", "Gold"],
+        ai_generated: true,
+        created_at: new Date().toISOString(),
+      };
+
+      set({ loading: false });
+      return personalizedHoroscope;
+    } catch (error: any) {
+      console.error("Personalized horoscope generation error:", error);
+      set({ error: error.message, loading: false });
+      return null;
     }
   },
 
@@ -654,6 +779,109 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
       set({ transitForecasts: data || [], loading: false });
     } catch (error: any) {
       set({ error: error.message, loading: false });
+    }
+  },
+
+  // New function to generate transit reports using the edge function
+  generateTransitReport: async (
+    chartId: string,
+    forecastDate: string,
+    period: string,
+    isPremium: boolean = false,
+  ) => {
+    set({ loading: true, error: null });
+    try {
+      const { user } = useAuthStore.getState();
+      if (!user) {
+        throw new Error("Please sign in to create transit reports");
+      }
+
+      // Check user's plan limitations
+      const userPlan = await checkUserPlanLimitations(user.id);
+      if (!userPlan.canCreateReport) {
+        throw new Error(
+          `You've reached your monthly limit of ${userPlan.reportLimit} reports. Upgrade your plan to create more.`,
+        );
+      }
+
+      // Get birth chart data
+      const { data: chartData, error: chartError } = await supabase
+        .from("birth_charts")
+        .select("*")
+        .eq("id", chartId)
+        .single();
+
+      if (chartError) throw chartError;
+
+      // Call the edge function to generate the transit report
+      console.log("Calling edge function: generate-transit-report");
+      const response = await supabase.functions.invoke(
+        "generate-transit-report",
+        {
+          body: {
+            birthData: {
+              name: chartData.name,
+              birthDate: chartData.birth_date,
+              birthTime: chartData.birth_time,
+              location: chartData.birth_location,
+            },
+            chartData: chartData.chart_data,
+            isPremium,
+            transitPeriod: period,
+          },
+        },
+      );
+
+      if (response.error) {
+        throw new Error(
+          response.error.message || "Failed to generate transit report",
+        );
+      }
+
+      const aiReport = response.data;
+      if (!aiReport?.report) {
+        throw new Error("No report data received");
+      }
+
+      // Format the report content
+      let reportContent = "";
+      if (typeof aiReport.report === "object") {
+        // Convert the structured report to a formatted string
+        reportContent = formatTransitReportContent(aiReport.report, isPremium);
+      } else if (typeof aiReport.report === "string") {
+        reportContent = aiReport.report;
+      } else {
+        reportContent = "Transit report generated successfully.";
+      }
+
+      // Save to database
+      const reportTitle = `${chartData.name}'s ${isPremium ? "Premium " : ""}${period.charAt(0).toUpperCase() + period.slice(1)} Transit Report`;
+      const { data, error } = await supabase
+        .from("astrology_reports")
+        .insert({
+          user_id: user.id,
+          birth_chart_id: chartId,
+          report_type: isPremium ? "transit-premium" : "transit",
+          title: reportTitle,
+          content: reportContent,
+          is_premium: isPremium,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const report = data as AstrologyReport;
+      set((state) => ({
+        reports: [...state.reports, report],
+        loading: false,
+      }));
+
+      return report;
+    } catch (error: any) {
+      console.error("Transit report creation error:", error);
+      set({ error: error.message, loading: false });
+      return null;
     }
   },
 
@@ -758,10 +986,19 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
   createVedicReport: async (chartId: string, isPremium?: boolean) => {
     set({ loading: true, error: null });
     try {
+      console.log(
+        "Starting Vedic report creation for chart:",
+        chartId,
+        "Premium:",
+        isPremium,
+      );
+
       const { user } = useAuthStore.getState();
       if (!user) {
         throw new Error("Please sign in to create Vedic reports");
       }
+
+      console.log("User authenticated:", user.id);
 
       // Check user's plan limitations
       const userPlan = await checkUserPlanLimitations(user.id);
@@ -771,6 +1008,8 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
         );
       }
 
+      console.log("User plan check passed:", userPlan);
+
       // Get birth chart data
       const { data: chartData, error: chartError } = await supabase
         .from("birth_charts")
@@ -778,23 +1017,37 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
         .eq("id", chartId)
         .single();
 
-      if (chartError) throw chartError;
+      if (chartError) {
+        console.error("Chart fetch error:", chartError);
+        throw chartError;
+      }
 
-      // Calculate Vedic chart data
-      const { calculateVedicBirthChart } = await import(
-        "../utils/astronomicalCalculations"
-      );
+      console.log("Chart data retrieved:", chartData?.name);
 
-      const vedicData = calculateVedicBirthChart({
-        name: chartData.name,
-        birthDate: chartData.birth_date,
-        birthTime: chartData.birth_time,
-        location: chartData.birth_location,
-      });
+      // Calculate Vedic chart data (use existing chart data for now)
+      let vedicData = chartData.chart_data;
+      try {
+        const { calculateVedicBirthChart } = await import(
+          "../utils/astronomicalCalculations"
+        );
+        vedicData = calculateVedicBirthChart({
+          name: chartData.name,
+          birthDate: chartData.birth_date,
+          birthTime: chartData.birth_time,
+          location: chartData.birth_location,
+        });
+        console.log("Vedic chart data calculated successfully");
+      } catch (importError) {
+        console.warn(
+          "Vedic calculation function not available, using standard chart data:",
+          importError,
+        );
+      }
 
       // Generate AI-powered Vedic report
+      console.log("Calling edge function: generate-vedic-report");
       const response = await supabase.functions.invoke(
-        "supabase-functions-generate-vedic-report",
+        "generate-vedic-report",
         {
           body: {
             birthData: {
@@ -813,35 +1066,75 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
         },
       );
 
+      console.log("Edge function response:", response);
+
       if (response.error) {
-        throw new Error(
-          response.error.message || "Failed to generate Vedic report",
+        console.error("Edge function error:", response.error);
+        // Fallback to basic Vedic report if edge function fails
+        const fallbackContent = generateFallbackVedicReport(
+          chartData,
+          isPremium || false,
         );
+
+        const reportTitle = `${chartData.name}'s ${isPremium ? "Premium " : ""}Vedic Astrology Report`;
+        const { data, error } = await supabase
+          .from("astrology_reports")
+          .insert({
+            user_id: user.id,
+            birth_chart_id: chartId,
+            report_type: isPremium ? "vedic-premium" : "vedic",
+            title: reportTitle,
+            content: fallbackContent,
+            is_premium: isPremium || false,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Database save error:", error);
+          throw error;
+        }
+
+        const report = data as AstrologyReport;
+        set((state) => ({
+          reports: [...state.reports, report],
+          loading: false,
+        }));
+
+        return report;
       }
 
       const aiReport = response.data;
+      console.log("AI report received:", aiReport ? "Success" : "No data");
 
       // Format the report content
       let reportContent = "";
-      if (aiReport.report && typeof aiReport.report === "object") {
+      if (aiReport?.report && typeof aiReport.report === "object") {
         reportContent = formatVedicReportContent(
           aiReport.report,
           isPremium || false,
         );
+      } else if (aiReport?.report?.fullContent) {
+        reportContent = aiReport.report.fullContent;
+      } else if (typeof aiReport?.report === "string") {
+        reportContent = aiReport.report;
       } else {
-        reportContent =
-          aiReport.report?.fullContent ||
-          "Vedic astrology report generated successfully.";
+        reportContent = generateFallbackVedicReport(
+          chartData,
+          isPremium || false,
+        );
       }
 
+      console.log("Report content formatted, length:", reportContent.length);
+
       // Save to database
-      const reportTitle = `${chartData.name}'s Vedic Astrology Report`;
+      const reportTitle = `${chartData.name}'s ${isPremium ? "Premium " : ""}Vedic Astrology Report`;
       const { data, error } = await supabase
         .from("astrology_reports")
         .insert({
           user_id: user.id,
           birth_chart_id: chartId,
-          report_type: "vedic",
+          report_type: isPremium ? "vedic-premium" : "vedic",
           title: reportTitle,
           content: reportContent,
           is_premium: isPremium || false,
@@ -849,7 +1142,12 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Database save error:", error);
+        throw error;
+      }
+
+      console.log("Report saved to database successfully:", data.id);
 
       const report = data as AstrologyReport;
       set((state) => ({
@@ -985,6 +1283,45 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
     }
   },
 
+  generateWeeklyTransitForecast: async (chartId: string) => {
+    try {
+      // Get birth chart data
+      const { data: chartData, error: chartError } = await supabase
+        .from("birth_charts")
+        .select("*")
+        .eq("id", chartId)
+        .single();
+
+      if (chartError) throw chartError;
+
+      // Generate AI-powered weekly transit forecast
+      try {
+        const { generateAITransitForecast } = await import(
+          "../utils/aiContentGenerator"
+        );
+        const forecast = await generateAITransitForecast({
+          chartData: chartData.chart_data,
+          userName: chartData.name,
+          period: "weekly",
+          birthDate: chartData.birth_date,
+        });
+        return forecast;
+      } catch (aiError) {
+        console.warn("AI transit forecast failed, using fallback:", aiError);
+        // Fallback forecast
+        return `This week brings significant planetary movements that will influence your personal growth and opportunities. 
+        Jupiter's favorable aspect to your natal Sun suggests expansion in career matters, while Venus transiting 
+        through your relationship sector indicates harmony in partnerships. Mercury's current position enhances 
+        communication and learning. Pay attention to intuitive insights around midweek when the Moon forms 
+        supportive aspects to your chart. This is an excellent time for making important decisions and 
+        taking calculated risks that align with your long-term goals.`;
+      }
+    } catch (error: any) {
+      console.error("Weekly transit forecast error:", error);
+      return null;
+    }
+  },
+
   clearError: () => {
     set({ error: null });
   },
@@ -994,7 +1331,7 @@ export const useAstrologyStore = create<AstrologyState>((set, get) => ({
 const checkUserPlanLimitations = async (userId: string) => {
   try {
     // Get user's current subscription
-    const { data: subscription } = await supabase
+    const { data: subscription, error: subscriptionError } = await supabase
       .from("user_subscriptions")
       .select("*,subscription_plans!inner(astrology_features)")
       .eq("user_id", userId)
@@ -1003,11 +1340,13 @@ const checkUserPlanLimitations = async (userId: string) => {
 
     let chartLimit = 5; // Free user default - 5 charts per month
     let reportLimit = 5; // Free user default - 5 reports per month
+    let isPremium = false;
 
     if (subscription?.subscription_plans?.astrology_features) {
       const features = subscription.subscription_plans.astrology_features;
       chartLimit = features.birth_charts_limit || 999; // null means unlimited
       reportLimit = features.compatibility_reports_limit || 999;
+      isPremium = subscription.subscription_plans.name !== "free";
     }
 
     // Count current month's usage
@@ -1015,25 +1354,31 @@ const checkUserPlanLimitations = async (userId: string) => {
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const { count: chartCount } = await supabase
-      .from("birth_charts")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("created_at", startOfMonth.toISOString());
+    const [chartCountResult, reportCountResult] = await Promise.all([
+      supabase
+        .from("birth_charts")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("created_at", startOfMonth.toISOString()),
+      supabase
+        .from("astrology_reports")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("created_at", startOfMonth.toISOString()),
+    ]);
 
-    const { count: reportCount } = await supabase
-      .from("astrology_reports")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("created_at", startOfMonth.toISOString());
+    const chartCount = chartCountResult.count || 0;
+    const reportCount = reportCountResult.count || 0;
 
     return {
-      canCreateChart: (chartCount || 0) < chartLimit,
-      canCreateReport: (reportCount || 0) < reportLimit,
+      canCreateChart: chartCount < chartLimit,
+      canCreateReport: reportCount < reportLimit,
       chartLimit,
       reportLimit,
-      chartCount: chartCount || 0,
-      reportCount: reportCount || 0,
+      chartCount,
+      reportCount,
+      isPremium,
+      subscriptionPlan: subscription?.subscription_plans?.name || "free",
     };
   } catch (error) {
     console.error("Error checking plan limitations:", error);
@@ -1045,6 +1390,8 @@ const checkUserPlanLimitations = async (userId: string) => {
       reportLimit: 5,
       chartCount: 0,
       reportCount: 0,
+      isPremium: false,
+      subscriptionPlan: "free",
     };
   }
 };
@@ -1066,7 +1413,25 @@ const generateCompatibilityAnalysis = (
             ? "fair"
             : "challenging";
 
-  return `The compatibility between ${chart1.name} and ${chart2.name} shows a ${level} connection with a score of ${score}%. This analysis is based on planetary positions, aspects, and elemental harmony between your birth charts. The cosmic energies suggest areas of natural harmony as well as opportunities for growth and understanding in your relationship.`;
+  // Enhanced analysis based on score
+  let detailedAnalysis = "";
+
+  if (score >= 80) {
+    detailedAnalysis = `${chart1.name} and ${chart2.name} share exceptional cosmic harmony. Your Sun, Moon, and rising signs create a beautiful symphony of understanding and mutual support. The planetary aspects between your charts indicate natural compatibility in communication, emotional needs, and life goals. This relationship has the potential for deep fulfillment and lasting happiness.`;
+  } else if (score >= 70) {
+    detailedAnalysis = `${chart1.name} and ${chart2.name} have very good compatibility with strong potential for a meaningful relationship. Your core planetary energies complement each other well, though there may be some areas that benefit from understanding and compromise. The Venus and Mars connections suggest good romantic and physical compatibility.`;
+  } else if (score >= 60) {
+    detailedAnalysis = `${chart1.name} and ${chart2.name} show good compatibility with a solid foundation for relationship growth. While your Sun signs may have different approaches to life, your Moon signs and other planetary positions create opportunities for deep understanding and mutual support when you take time to appreciate each other's perspectives.`;
+  } else if (score >= 50) {
+    detailedAnalysis = `${chart1.name} and ${chart2.name} have fair compatibility that offers both harmony and growth opportunities. Your different astrological energies can actually complement each other beautifully when approached with patience and understanding. This relationship may require more conscious effort but can lead to significant personal development for both partners.`;
+  } else {
+    detailedAnalysis = `${chart1.name} and ${chart2.name} face some astrological challenges that require extra patience, understanding, and communication. While the planetary aspects suggest areas of tension, these differences can actually lead to profound personal growth and a deeper appreciation of each other's unique qualities when approached with love, awareness, and possibly professional guidance.`;
+  }
+
+  return (
+    detailedAnalysis +
+    ` This analysis considers Sun, Moon, Venus, Mars positions, elemental balance, and major planetary aspects between your birth charts.`
+  );
 };
 
 // Calculate elemental harmony between two charts
@@ -1206,6 +1571,152 @@ const formatVedicReportContent = (report: any, isPremium: boolean): string => {
   return content;
 };
 
+// Helper function to format Transit report content
+const formatTransitReportContent = (
+  report: any,
+  isPremium: boolean,
+): string => {
+  let content = `**Transit Report**\n\n`;
+
+  // Personal Details
+  if (report.personalDetails) {
+    content += `**Personal Details**\n`;
+    if (typeof report.personalDetails === "object") {
+      Object.entries(report.personalDetails).forEach(([key, value]) => {
+        content += `${key}: ${value}\n`;
+      });
+    } else {
+      content += `${report.personalDetails}\n`;
+    }
+    content += `\n`;
+  }
+
+  // Current Transits
+  if (report.currentTransits) {
+    content += `**Current Transits**\n`;
+    if (typeof report.currentTransits === "object") {
+      Object.entries(report.currentTransits).forEach(([key, value]) => {
+        content += `${key}: ${value}\n`;
+      });
+    } else {
+      content += `${report.currentTransits}\n`;
+    }
+    content += `\n`;
+  }
+
+  // Transit Effects
+  if (report.transitEffects) {
+    content += `**Transit Effects**\n${report.transitEffects}\n\n`;
+  }
+
+  // Transit Calendar
+  if (report.transitCalendar) {
+    content += `**Transit Calendar**\n`;
+    if (typeof report.transitCalendar === "object") {
+      Object.entries(report.transitCalendar).forEach(([period, events]) => {
+        content += `${period}:\n`;
+        if (Array.isArray(events)) {
+          events.forEach((event) => {
+            content += `- ${event}\n`;
+          });
+        }
+      });
+    } else {
+      content += `${report.transitCalendar}\n`;
+    }
+    content += `\n`;
+  }
+
+  // Life Area Impacts - Premium Only
+  if (
+    isPremium &&
+    report.lifeAreaImpacts &&
+    typeof report.lifeAreaImpacts === "object"
+  ) {
+    content += `**Life Area Impacts**\n`;
+    Object.entries(report.lifeAreaImpacts).forEach(([area, impact]) => {
+      content += `${area}: ${impact}\n`;
+    });
+    content += `\n`;
+  }
+
+  // Recommendations
+  if (report.recommendations) {
+    content += `**Recommendations**\n`;
+    if (Array.isArray(report.recommendations)) {
+      report.recommendations.forEach((rec) => {
+        content += `- ${rec}\n`;
+      });
+    } else {
+      content += `${report.recommendations}\n`;
+    }
+    content += `\n`;
+  }
+
+  // Smart Summary - Premium Only
+  if (isPremium && report.smartSummary) {
+    content += `**Smart Summary**\n${report.smartSummary}\n\n`;
+  }
+
+  // Conclusion
+  if (report.conclusion) {
+    content += `**Conclusion**\n${report.conclusion}\n\n`;
+  }
+
+  return content;
+};
+
+// Helper function to generate fallback Vedic report
+const generateFallbackVedicReport = (
+  chartData: any,
+  isPremium: boolean,
+): string => {
+  const userName = chartData.name;
+  const birthDate = new Date(chartData.birth_date).toLocaleDateString();
+
+  let content = `**Vedic Astrology Report for ${userName}**\n\n`;
+  content += `**Birth Details**\n`;
+  content += `Name: ${userName}\n`;
+  content += `Birth Date: ${birthDate}\n`;
+  if (chartData.birth_time) {
+    content += `Birth Time: ${chartData.birth_time}\n`;
+  }
+  if (chartData.birth_location) {
+    content += `Birth Location: ${chartData.birth_location.city}, ${chartData.birth_location.country}\n`;
+  }
+  content += `\n`;
+
+  content += `**Introduction to Vedic Astrology**\n`;
+  content += `Vedic astrology, also known as Jyotish, is an ancient system of astrology that originated in India thousands of years ago. This sacred science provides profound insights into your karmic patterns, spiritual path, and life purpose based on the precise positions of celestial bodies at the time of your birth.\n\n`;
+
+  content += `**Your Janma Kundali (Birth Chart)**\n`;
+  content += `Your birth chart reveals the cosmic blueprint of your soul's journey in this lifetime. The planetary positions at your birth create unique energy patterns that influence your personality, relationships, career, and spiritual evolution.\n\n`;
+
+  if (isPremium) {
+    content += `**Detailed Planetary Analysis**\n`;
+    content += `Each planet in your chart carries specific karmic lessons and gifts. The Sun represents your soul's purpose, the Moon your emotional nature and past-life patterns, Mars your energy and courage, Mercury your communication and intellect, Jupiter your wisdom and spiritual growth, Venus your relationships and creativity, and Saturn your discipline and life lessons.\n\n`;
+
+    content += `**Nakshatra Insights**\n`;
+    content += `Your birth nakshatra (lunar mansion) provides deep insights into your inherent nature, talents, and spiritual inclinations. This ancient system divides the zodiac into 27 nakshatras, each with its own deity, symbol, and characteristics that influence your personality and life path.\n\n`;
+
+    content += `**Dasha Periods**\n`;
+    content += `The Vimshottari Dasha system reveals the timing of major life events and planetary influences. Understanding your current and upcoming dasha periods helps you navigate life's challenges and opportunities with greater awareness and preparation.\n\n`;
+  }
+
+  content += `**Spiritual Guidance and Remedies**\n`;
+  content += `Vedic astrology offers practical remedies to harmonize planetary energies and enhance positive influences in your life. These may include gemstone recommendations, mantras, charitable activities, and spiritual practices aligned with your chart's needs.\n\n`;
+
+  content += `**Life Path and Purpose**\n`;
+  content += `Your Vedic chart reveals your dharma (life purpose) and the lessons your soul has chosen to learn in this incarnation. By understanding these cosmic influences, you can align your actions with your highest potential and live a more fulfilling, purposeful life.\n\n`;
+
+  content += `**Conclusion**\n`;
+  content += `This Vedic astrology analysis provides a foundation for understanding your cosmic blueprint and spiritual journey. Remember that while the stars influence our lives, we always have free will to shape our destiny through conscious choices and spiritual growth. May this ancient wisdom guide you toward greater self-awareness, inner peace, and fulfillment.\n\n`;
+
+  content += `*This report was generated using traditional Vedic astrology principles. For a more detailed analysis, consider consulting with a qualified Vedic astrologer.*`;
+
+  return content;
+};
+
 // Helper function to generate auto report title
 const generateAutoReportTitle = (
   userName: string,
@@ -1219,23 +1730,10 @@ const generateAutoReportTitle = (
     yearly: "Yearly Forecast Report",
     spiritual: "Spiritual Path Report",
     vedic: "Vedic Astrology Report",
+    transit: "Transit Report",
+    "transit-premium": "Premium Transit Report",
   };
 
   const typeName = typeNames[reportType] || "Astrology Report";
   return userName + "'s " + typeName;
-};
-
-// Add transit report type to the type names
-const addTransitReportType = () => {
-  const typeNames = {
-    natal: "Natal Chart Report",
-    personality: "Personality Profile",
-    career: "Career & Life Purpose Report",
-    relationships: "Love & Relationships Report",
-    yearly: "Yearly Forecast Report",
-    spiritual: "Spiritual Path Report",
-    vedic: "Vedic Astrology Report",
-    transit: "Transit Forecast Report",
-  };
-  return typeNames;
 };

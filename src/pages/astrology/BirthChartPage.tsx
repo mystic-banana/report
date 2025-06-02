@@ -1,7 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Star, ArrowLeft, Download, Share2 } from "lucide-react";
+import {
+  Star,
+  ArrowLeft,
+  Download,
+  Share2,
+  Crown,
+  Smartphone,
+} from "lucide-react";
 import PageLayout from "../../components/layout/PageLayout";
 import BirthDataForm from "../../components/astrology/BirthDataForm";
 import InteractiveChart from "../../components/astrology/InteractiveChart";
@@ -17,6 +24,24 @@ const BirthChartPage: React.FC = () => {
   const { createBirthChart, currentChart, loading } = useAstrologyStore();
   const [step, setStep] = useState<"form" | "chart">("form");
   const [generatedChart, setGeneratedChart] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isPremiumUser, setIsPremiumUser] = useState(false);
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Check premium status
+  useEffect(() => {
+    // TODO: Implement actual premium check from user subscription
+    setIsPremiumUser(user?.subscription_plan !== "free");
+  }, [user]);
 
   const handleBirthDataSubmit = async (birthData: BirthData) => {
     const chart = await createBirthChart(birthData);
@@ -36,7 +61,9 @@ const BirthChartPage: React.FC = () => {
       <div className="bg-gradient-to-br from-dark-900 via-dark-850 to-dark-800 min-h-screen">
         <div className="container mx-auto px-4 py-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div
+            className={`flex ${isMobile ? "flex-col space-y-4" : "items-center justify-between"} mb-8`}
+          >
             <div className="flex items-center">
               <button
                 onClick={() => navigate("/astrology")}
@@ -45,7 +72,9 @@ const BirthChartPage: React.FC = () => {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h1 className="text-3xl md:text-4xl font-serif font-bold text-white mb-2">
+                <h1
+                  className={`${isMobile ? "text-2xl" : "text-3xl md:text-4xl"} font-serif font-bold text-white mb-2`}
+                >
                   Birth Chart Generator
                 </h1>
                 <p className="text-gray-400">
@@ -53,14 +82,18 @@ const BirthChartPage: React.FC = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center space-x-2">
+              {isMobile && <Smartphone className="w-6 h-6 text-blue-400" />}
+              {isPremiumUser && <Crown className="w-6 h-6 text-yellow-400" />}
               <Star className="w-8 h-8 text-purple-400" />
             </div>
           </div>
 
           {/* Progress Indicator */}
           <div className="flex items-center justify-center mb-8">
-            <div className="flex items-center space-x-4">
+            <div
+              className={`flex items-center ${isMobile ? "space-x-2" : "space-x-4"}`}
+            >
               <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
                   step === "form"
@@ -70,7 +103,9 @@ const BirthChartPage: React.FC = () => {
               >
                 1
               </div>
-              <div className="w-16 h-0.5 bg-dark-600"></div>
+              <div
+                className={`${isMobile ? "w-8" : "w-16"} h-0.5 bg-dark-600`}
+              ></div>
               <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
                   step === "chart"
@@ -92,7 +127,9 @@ const BirthChartPage: React.FC = () => {
             transition={{ duration: 0.3 }}
           >
             {step === "form" && (
-              <div className="max-w-2xl mx-auto">
+              <div
+                className={`${isMobile ? "max-w-full px-2" : "max-w-2xl"} mx-auto`}
+              >
                 <BirthDataForm
                   onSubmit={handleBirthDataSubmit}
                   loading={loading}
@@ -103,8 +140,12 @@ const BirthChartPage: React.FC = () => {
             {step === "chart" && generatedChart && (
               <div className="space-y-8">
                 {/* Chart Header */}
-                <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
-                  <div className="flex items-center justify-between mb-4">
+                <div
+                  className={`bg-dark-800 rounded-2xl p-${isMobile ? 4 : 6} border border-dark-700`}
+                >
+                  <div
+                    className={`flex ${isMobile ? "flex-col space-y-3" : "items-center justify-between"} mb-4`}
+                  >
                     <div>
                       <h2 className="text-2xl font-serif font-bold text-white mb-2">
                         {generatedChart.name}'s Birth Chart
@@ -113,7 +154,9 @@ const BirthChartPage: React.FC = () => {
                         Generated on {new Date().toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div
+                      className={`flex items-center ${isMobile ? "flex-wrap gap-2" : "space-x-2"}`}
+                    >
                       <Button
                         variant="outline"
                         size="sm"
@@ -161,18 +204,27 @@ const BirthChartPage: React.FC = () => {
                   <div>
                     <InteractiveChart
                       chartData={generatedChart.chart_data}
-                      width={800}
-                      height={800}
+                      width={isMobile ? 350 : 800}
+                      height={isMobile ? 350 : 800}
                       userName={generatedChart.name}
                       birthDate={generatedChart.birth_date}
+                      isMobile={isMobile}
+                      isPremiumUser={isPremiumUser}
+                      showPremiumFeatures={isPremiumUser}
                     />
 
                     {/* Chart Insights */}
-                    <div className="mt-8 bg-dark-800 rounded-2xl p-6 border border-dark-700">
-                      <h3 className="text-xl font-semibold text-white mb-4">
+                    <div
+                      className={`mt-8 bg-dark-800 rounded-2xl p-${isMobile ? 4 : 6} border border-dark-700`}
+                    >
+                      <h3
+                        className={`${isMobile ? "text-lg" : "text-xl"} font-semibold text-white mb-4`}
+                      >
                         Key Insights
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div
+                        className={`grid grid-cols-1 ${isMobile ? "" : "md:grid-cols-2"} gap-6`}
+                      >
                         <div>
                           <h4 className="text-lg font-medium text-white mb-3">
                             Planetary Strengths
@@ -267,11 +319,17 @@ const BirthChartPage: React.FC = () => {
                 )}
 
                 {/* Chart Interpretation */}
-                <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
-                  <h3 className="text-xl font-semibold text-white mb-4">
+                <div
+                  className={`bg-dark-800 rounded-2xl p-${isMobile ? 4 : 6} border border-dark-700`}
+                >
+                  <h3
+                    className={`${isMobile ? "text-lg" : "text-xl"} font-semibold text-white mb-4`}
+                  >
                     Chart Overview
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div
+                    className={`grid grid-cols-1 ${isMobile ? "" : "md:grid-cols-2 lg:grid-cols-3"} gap-6`}
+                  >
                     <div className="bg-gradient-to-br from-purple-900/20 to-indigo-900/20 rounded-xl p-4 border border-purple-500/20">
                       <h4 className="text-lg font-medium text-white mb-2">
                         Sun Sign
@@ -300,11 +358,17 @@ const BirthChartPage: React.FC = () => {
                 </div>
 
                 {/* Next Steps */}
-                <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 rounded-2xl p-6 border border-purple-500/20">
-                  <h3 className="text-xl font-semibold text-white mb-4">
+                <div
+                  className={`bg-gradient-to-r from-purple-900/30 to-indigo-900/30 rounded-2xl p-${isMobile ? 4 : 6} border border-purple-500/20`}
+                >
+                  <h3
+                    className={`${isMobile ? "text-lg" : "text-xl"} font-semibold text-white mb-4`}
+                  >
                     Explore More
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div
+                    className={`grid grid-cols-1 ${isMobile ? "" : "md:grid-cols-2"} gap-4`}
+                  >
                     <Button
                       onClick={() => navigate("/astrology/compatibility")}
                       variant="outline"

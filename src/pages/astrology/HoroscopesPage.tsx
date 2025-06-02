@@ -26,6 +26,8 @@ const HoroscopesPage: React.FC = () => {
     new Date().toISOString().split("T")[0],
   );
   const [todayHoroscope, setTodayHoroscope] = useState(null);
+  const [isPersonalized, setIsPersonalized] = useState(false);
+  const [horoscopeHistory, setHoroscopeHistory] = useState([]);
 
   const zodiacSigns = [
     "Aries",
@@ -79,9 +81,50 @@ const HoroscopesPage: React.FC = () => {
 
   useEffect(() => {
     if (selectedSign) {
+      if (isPersonalized && birthCharts.length > 0) {
+        generatePersonalizedHoroscope();
+      } else {
+        fetchDailyHoroscope(selectedSign, selectedDate).then(setTodayHoroscope);
+      }
+    }
+  }, [selectedSign, selectedDate, isPersonalized]);
+
+  const generatePersonalizedHoroscope = async () => {
+    if (!selectedSign || !birthCharts.length) return;
+
+    try {
+      const response = await supabase.functions.invoke(
+        "generate-daily-horoscope",
+        {
+          body: {
+            zodiacSign: selectedSign,
+            date: selectedDate,
+            birthChart: birthCharts[0].chart_data,
+            currentTransits: [], // TODO: Add current transit data
+            isPremium: user?.subscription_plan !== "free",
+          },
+        },
+      );
+
+      if (response.data?.horoscope) {
+        setTodayHoroscope({
+          ...response.data.horoscope,
+          content:
+            response.data.horoscope.dailyOverview ||
+            response.data.horoscope.fullContent,
+          love_score: response.data.horoscope.loveScore,
+          career_score: response.data.horoscope.careerScore,
+          health_score: response.data.horoscope.healthScore,
+          lucky_numbers: response.data.horoscope.luckyNumbers,
+          lucky_colors: response.data.horoscope.luckyColors,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to generate personalized horoscope:", error);
+      // Fallback to regular horoscope
       fetchDailyHoroscope(selectedSign, selectedDate).then(setTodayHoroscope);
     }
-  }, [selectedSign, selectedDate]);
+  };
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return "text-green-400";
@@ -117,20 +160,46 @@ const HoroscopesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Date Selector */}
+          {/* Date Selector & Personalization */}
           <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700 mb-8">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold text-white flex items-center">
                 <Calendar className="w-5 h-5 mr-2 text-amber-400" />
-                Select Date
+                Horoscope Settings
               </h3>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-dark-700 border border-dark-600 text-white rounded-lg p-2 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-              />
+              <div className="flex items-center space-x-4">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-dark-700 border border-dark-600 text-white rounded-lg p-2 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+              </div>
             </div>
+
+            {/* Personalization Toggle */}
+            {isAuthenticated && birthCharts.length > 0 && (
+              <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-900/20 to-indigo-900/20 rounded-xl border border-purple-500/20">
+                <div>
+                  <h4 className="text-white font-medium mb-1">
+                    Personalized Horoscope
+                  </h4>
+                  <p className="text-gray-300 text-sm">
+                    Use your birth chart for personalized insights based on
+                    current transits
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isPersonalized}
+                    onChange={(e) => setIsPersonalized(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+            )}
           </div>
 
           {/* Zodiac Sign Selector */}
@@ -198,6 +267,21 @@ const HoroscopesPage: React.FC = () => {
                     <p className="text-gray-200 text-lg leading-relaxed mb-8 font-medium">
                       {todayHoroscope.content}
                     </p>
+                    {isPersonalized && (
+                      <div className="bg-gradient-to-r from-purple-900/20 to-indigo-900/20 rounded-xl p-4 mb-6 border border-purple-500/20">
+                        <div className="flex items-center mb-2">
+                          <Star className="w-5 h-5 text-purple-400 mr-2" />
+                          <span className="text-purple-200 font-semibold text-sm">
+                            Personalized Insight
+                          </span>
+                        </div>
+                        <p className="text-purple-100 text-sm">
+                          This horoscope is tailored to your birth chart and
+                          current planetary transits affecting your unique
+                          astrological profile.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Meditation Practice */}

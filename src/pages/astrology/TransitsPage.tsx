@@ -1,107 +1,95 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import {
-  TrendingUp,
-  ArrowLeft,
-  Calendar,
-  Star,
-  AlertCircle,
-} from "lucide-react";
-import PageLayout from "../../components/layout/PageLayout";
 import { useAstrologyStore } from "../../store/astrologyStore";
 import { useAuthStore } from "../../store/authStore";
+import PageLayout from "../../components/layout/PageLayout";
 import Button from "../../components/ui/Button";
 import LoadingSpinner from "../../components/ui/LoadingSpinner";
+import TransitTimeline from "../../components/astrology/TransitTimeline";
+import {
+  TrendingUp,
+  Calendar,
+  Star,
+  Download,
+  Clock,
+  Target,
+  Zap,
+} from "lucide-react";
 
 const TransitsPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuthStore();
+  const { user } = useAuthStore();
   const {
     birthCharts,
     transitForecasts,
     loading,
+    error,
     fetchBirthCharts,
     fetchTransitForecasts,
     generateTransitForecast,
+    generateTransitReport,
+    clearError,
   } = useAstrologyStore();
 
   const [selectedChart, setSelectedChart] = useState<string>("");
-  const [forecastPeriod, setForecastPeriod] = useState<string>("week");
   const [forecastDate, setForecastDate] = useState(
     new Date().toISOString().split("T")[0],
   );
+  const [forecastPeriod, setForecastPeriod] = useState("weekly");
+  const [activeTab, setActiveTab] = useState<
+    "timeline" | "reports" | "analysis"
+  >("timeline");
+  const [transitData, setTransitData] = useState<any>(null);
 
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (user) {
       fetchBirthCharts(user.id);
     }
-  }, [isAuthenticated, user]);
-
-  useEffect(() => {
-    if (birthCharts.length > 0 && !selectedChart) {
-      setSelectedChart(birthCharts[0].id);
-    }
-  }, [birthCharts.length, selectedChart]);
+  }, [user, fetchBirthCharts]);
 
   useEffect(() => {
     if (selectedChart) {
       fetchTransitForecasts(selectedChart);
     }
-  }, [selectedChart]);
+  }, [selectedChart, fetchTransitForecasts]);
 
-  const handleGenerateForecast = async () => {
+  useEffect(() => {
+    if (birthCharts.length > 0 && !selectedChart) {
+      setSelectedChart(birthCharts[0].id);
+    }
+  }, [birthCharts, selectedChart]);
+
+  const handleGenerateReport = async (isPremium: boolean = false) => {
     if (selectedChart) {
-      await generateTransitForecast(
+      const report = await generateTransitReport(
         selectedChart,
         forecastDate,
         forecastPeriod,
+        isPremium,
       );
+      if (report) {
+        setActiveTab("reports");
+      }
     }
   };
 
-  const getSignificanceColor = (level: string) => {
-    switch (level) {
-      case "high":
-        return "text-red-400 bg-red-900/20 border-red-500/20";
-      case "medium":
-        return "text-yellow-400 bg-yellow-900/20 border-yellow-500/20";
-      case "low":
-        return "text-green-400 bg-green-900/20 border-green-500/20";
-      default:
-        return "text-gray-400 bg-gray-900/20 border-gray-500/20";
-    }
+  const handleDateChange = (newDate: string) => {
+    setForecastDate(newDate);
   };
 
-  if (!isAuthenticated) {
+  const selectedChartData = birthCharts.find(
+    (chart) => chart.id === selectedChart,
+  );
+
+  if (!user) {
     return (
-      <PageLayout title="Transit Forecasts - Mystic Banana">
-        <div className="bg-gradient-to-br from-dark-900 via-dark-850 to-dark-800 min-h-screen">
-          <div className="container mx-auto px-4 py-8">
-            <div className="max-w-2xl mx-auto text-center">
-              <div className="bg-gradient-to-br from-teal-900/30 to-cyan-900/30 rounded-2xl p-8 border border-teal-500/20">
-                <TrendingUp className="w-16 h-16 text-teal-400 mx-auto mb-6" />
-                <h1 className="text-3xl font-serif font-bold text-white mb-4">
-                  Planetary Transit Forecasts
-                </h1>
-                <p className="text-gray-300 mb-8">
-                  Track how current planetary movements influence your personal
-                  birth chart and discover upcoming cosmic events that will
-                  impact your life.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Button
-                    onClick={() => navigate("/signup")}
-                    className="bg-gradient-to-r from-teal-600 to-cyan-600"
-                  >
-                    Sign Up to Get Started
-                  </Button>
-                  <Button variant="outline" onClick={() => navigate("/login")}>
-                    Sign In
-                  </Button>
-                </div>
-              </div>
-            </div>
+      <PageLayout title="Planetary Transits">
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          <div className="text-center">
+            <h1 className="text-3xl font-serif font-bold text-white mb-4">
+              Please Sign In
+            </h1>
+            <p className="text-gray-300">
+              Sign in to access your personalized transit forecasts and reports.
+            </p>
           </div>
         </div>
       </PageLayout>
@@ -109,270 +97,598 @@ const TransitsPage: React.FC = () => {
   }
 
   return (
-    <PageLayout title="Transit Forecasts - Mystic Banana">
-      <div className="bg-gradient-to-br from-dark-900 via-dark-850 to-dark-800 min-h-screen">
-        <div className="container mx-auto px-4 py-8">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center">
-              <button
-                onClick={() => navigate("/astrology")}
-                className="mr-4 p-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="text-3xl md:text-4xl font-serif font-bold text-white mb-2">
-                  Transit Forecasts
-                </h1>
-                <p className="text-gray-400">
-                  Track planetary movements and their personal impact
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <TrendingUp className="w-8 h-8 text-teal-400" />
-            </div>
+    <PageLayout title="Planetary Transits">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="flex items-center justify-center mb-4">
+            <TrendingUp className="w-12 h-12 text-teal-400 mr-4" />
+            <h1 className="text-4xl font-serif font-bold text-white">
+              Planetary Transits
+            </h1>
           </div>
+          <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+            Discover how current planetary movements influence your personal
+            birth chart and life path. Generate detailed transit reports with
+            timing, interpretations, and guidance.
+          </p>
+        </div>
 
-          {birthCharts.length === 0 ? (
-            <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 rounded-2xl p-8 border border-purple-500/20 text-center">
-              <Star className="w-12 h-12 text-purple-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">
-                Create Your Birth Chart First
-              </h3>
-              <p className="text-gray-300 mb-6">
-                To generate personalized transit forecasts, you need to create
-                your birth chart first.
-              </p>
-              <Button
-                onClick={() => navigate("/astrology/birth-chart")}
-                className="bg-gradient-to-r from-purple-600 to-indigo-600"
+        {error && (
+          <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 mb-6">
+            <p className="text-red-300">{error}</p>
+            <Button
+              onClick={clearError}
+              variant="ghost"
+              size="sm"
+              className="mt-2"
+            >
+              Dismiss
+            </Button>
+          </div>
+        )}
+
+        {birthCharts.length === 0 ? (
+          <div className="bg-dark-800 rounded-2xl p-8 border border-dark-700 text-center">
+            <Star className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-semibold text-white mb-4">
+              Create Your Birth Chart First
+            </h2>
+            <p className="text-gray-300 mb-6">
+              To generate transit reports, you need to create a birth chart
+              first. This provides the foundation for understanding how current
+              planetary movements affect your unique astrological profile.
+            </p>
+            <Button
+              onClick={() => (window.location.href = "/astrology/birth-chart")}
+              className="bg-gradient-to-r from-purple-600 to-indigo-600"
+            >
+              Create Birth Chart
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {/* Navigation Tabs */}
+            <div className="flex flex-wrap gap-2 mb-8">
+              <button
+                onClick={() => setActiveTab("timeline")}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center ${
+                  activeTab === "timeline"
+                    ? "bg-teal-600 text-white"
+                    : "bg-dark-600 text-gray-300 hover:bg-dark-500"
+                }`}
               >
-                Create Birth Chart
-              </Button>
+                <Calendar className="w-5 h-5 mr-2" />
+                Transit Timeline
+              </button>
+              <button
+                onClick={() => setActiveTab("analysis")}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center ${
+                  activeTab === "analysis"
+                    ? "bg-teal-600 text-white"
+                    : "bg-dark-600 text-gray-300 hover:bg-dark-500"
+                }`}
+              >
+                <Target className="w-5 h-5 mr-2" />
+                Analysis
+              </button>
+              <button
+                onClick={() => setActiveTab("reports")}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center ${
+                  activeTab === "reports"
+                    ? "bg-teal-600 text-white"
+                    : "bg-dark-600 text-gray-300 hover:bg-dark-500"
+                }`}
+              >
+                <Download className="w-5 h-5 mr-2" />
+                Reports (
+                {
+                  reports.filter((r) => r.report_type.includes("transit"))
+                    .length
+                }
+                )
+              </button>
             </div>
-          ) : (
-            <div className="space-y-8">
-              {/* Forecast Generator */}
-              <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
-                <h3 className="text-xl font-semibold text-white mb-6">
-                  Generate Transit Forecast
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+              {/* Controls Panel */}
+              <div className="lg:col-span-1">
+                <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700 sticky top-8">
+                  <h2 className="text-xl font-semibold text-white mb-6">
+                    Transit Controls
+                  </h2>
+
+                  {/* Chart Selection */}
+                  <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       Select Birth Chart
                     </label>
                     <select
                       value={selectedChart}
                       onChange={(e) => setSelectedChart(e.target.value)}
-                      className="w-full bg-dark-700 border border-dark-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      className="w-full bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                     >
                       {birthCharts.map((chart) => (
                         <option key={chart.id} value={chart.id}>
-                          {chart.name}
+                          {chart.name} (
+                          {new Date(chart.birth_date).toLocaleDateString()})
                         </option>
                       ))}
                     </select>
                   </div>
-                  <div>
+
+                  {/* Date Selection */}
+                  <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Forecast Period
-                    </label>
-                    <select
-                      value={forecastPeriod}
-                      onChange={(e) => setForecastPeriod(e.target.value)}
-                      className="w-full bg-dark-700 border border-dark-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    >
-                      <option value="week">This Week</option>
-                      <option value="month">This Month</option>
-                      <option value="quarter">Next 3 Months</option>
-                      <option value="year">This Year</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Start Date
+                      Transit Date
                     </label>
                     <input
                       type="date"
                       value={forecastDate}
                       onChange={(e) => setForecastDate(e.target.value)}
-                      className="w-full bg-dark-700 border border-dark-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      className="w-full bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
-                </div>
-                <Button
-                  onClick={handleGenerateForecast}
-                  loading={loading}
-                  className="bg-gradient-to-r from-teal-600 to-cyan-600"
-                >
-                  Generate Forecast
-                </Button>
-              </div>
 
-              {/* Current Transits */}
-              <div className="bg-gradient-to-r from-teal-900/30 to-cyan-900/30 rounded-2xl p-6 border border-teal-500/20">
-                <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                  <Calendar className="w-5 h-5 mr-2 text-teal-400" />
-                  Current Major Transits
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="bg-dark-800/50 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-white font-medium">
-                        Jupiter Transit
-                      </h4>
-                      <span className="text-xs px-2 py-1 bg-green-600 text-white rounded-full">
-                        Beneficial
-                      </span>
-                    </div>
-                    <p className="text-gray-400 text-sm mb-2">
-                      Jupiter in Taurus - 5th House
-                    </p>
-                    <p className="text-gray-300 text-sm">
-                      Expansion in creativity and romance. Great time for
-                      artistic pursuits.
-                    </p>
+                  {/* Period Selection */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Report Period
+                    </label>
+                    <select
+                      value={forecastPeriod}
+                      onChange={(e) => setForecastPeriod(e.target.value)}
+                      className="w-full bg-dark-700 border border-dark-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
                   </div>
-                  <div className="bg-dark-800/50 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-white font-medium">Saturn Transit</h4>
-                      <span className="text-xs px-2 py-1 bg-yellow-600 text-white rounded-full">
-                        Challenging
-                      </span>
-                    </div>
-                    <p className="text-gray-400 text-sm mb-2">
-                      Saturn in Pisces - 12th House
-                    </p>
-                    <p className="text-gray-300 text-sm">
-                      Time for spiritual growth and releasing old patterns.
-                    </p>
-                  </div>
-                  <div className="bg-dark-800/50 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-white font-medium">Mars Transit</h4>
-                      <span className="text-xs px-2 py-1 bg-red-600 text-white rounded-full">
-                        Intense
-                      </span>
-                    </div>
-                    <p className="text-gray-400 text-sm mb-2">
-                      Mars in Scorpio - 8th House
-                    </p>
-                    <p className="text-gray-300 text-sm">
-                      Deep transformation and powerful insights coming your way.
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Transit Forecasts */}
-              {transitForecasts.length > 0 ? (
-                <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
-                  <h3 className="text-xl font-semibold text-white mb-6">
-                    Your Transit Forecasts
-                  </h3>
-                  <div className="space-y-4">
-                    {transitForecasts.map((forecast) => (
-                      <motion.div
-                        key={forecast.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`rounded-xl p-4 border ${getSignificanceColor(
-                          forecast.significance_level,
-                        )}`}
+                  {/* Generate Button - Dynamic based on user status */}
+                  <div>
+                    <div className="space-y-3">
+                      <Button
+                        onClick={() => handleGenerateReport(false)}
+                        loading={loading}
+                        className="bg-gradient-to-r from-teal-600 to-cyan-600 w-full"
+                        disabled={!selectedChart}
                       >
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center">
-                            <AlertCircle className="w-5 h-5 mr-2" />
-                            <h4 className="font-medium">
-                              {forecast.forecast_period} Forecast
-                            </h4>
-                          </div>
-                          <span className="text-sm">
-                            {new Date(
-                              forecast.forecast_date,
-                            ).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <p className="text-sm mb-3">
-                          {forecast.forecast_content}
-                        </p>
-                        <div className="text-xs opacity-75">
-                          Significance: {forecast.significance_level}
-                        </div>
-                      </motion.div>
-                    ))}
+                        Generate Basic Report
+                      </Button>
+                      <Button
+                        onClick={() => handleGenerateReport(true)}
+                        loading={loading}
+                        className="bg-gradient-to-r from-amber-600 to-orange-600 w-full"
+                        disabled={!selectedChart}
+                      >
+                        Generate Premium Report
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                      Premium reports include detailed timing, aspects, and
+                      predictions.
+                    </p>
                   </div>
-                </div>
-              ) : (
-                <div className="bg-dark-800 rounded-2xl p-8 border border-dark-700 text-center">
-                  <TrendingUp className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                  <h4 className="text-lg font-medium text-gray-400 mb-2">
-                    No Forecasts Yet
-                  </h4>
-                  <p className="text-gray-500 mb-4">
-                    Generate your first transit forecast to see how current
-                    planetary movements affect you.
-                  </p>
-                </div>
-              )}
 
-              {/* How Transits Work */}
-              <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
-                <h3 className="text-xl font-semibold text-white mb-6">
-                  Understanding Planetary Transits
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="text-white font-medium mb-3">
-                      What are Transits?
-                    </h4>
-                    <p className="text-gray-400 text-sm mb-4">
-                      Transits occur when current planetary positions form
-                      aspects (angles) to the planets in your birth chart. These
-                      cosmic interactions influence different areas of your
-                      life.
-                    </p>
-                    <h4 className="text-white font-medium mb-3">
-                      Major Transit Planets
-                    </h4>
-                    <ul className="text-gray-400 text-sm space-y-1">
-                      <li>• Jupiter: Growth, expansion, opportunities</li>
-                      <li>• Saturn: Lessons, structure, challenges</li>
-                      <li>• Uranus: Change, innovation, surprises</li>
-                      <li>• Neptune: Spirituality, dreams, illusions</li>
-                      <li>• Pluto: Transformation, power, rebirth</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <h4 className="text-white font-medium mb-3">
-                      Transit Timing
-                    </h4>
-                    <p className="text-gray-400 text-sm mb-4">
-                      Different planets move at different speeds, creating
-                      various types of influences:
-                    </p>
-                    <ul className="text-gray-400 text-sm space-y-1">
-                      <li>
-                        • Fast planets (Sun, Moon, Mercury): Daily influences
-                      </li>
-                      <li>• Medium planets (Venus, Mars): Weekly to monthly</li>
-                      <li>
-                        • Slow planets (Jupiter, Saturn): Yearly influences
-                      </li>
-                      <li>
-                        • Outer planets (Uranus, Neptune, Pluto): Generational
-                        changes
-                      </li>
-                    </ul>
+                  {/* Report Type Info */}
+                  <div className="mt-6 space-y-4">
+                    <div className="bg-gradient-to-r from-teal-900/20 to-cyan-900/20 rounded-lg p-4 border border-teal-500/20">
+                      <h3 className="text-sm font-semibold text-white mb-2">
+                        Basic Report Includes:
+                      </h3>
+                      <ul className="text-xs text-gray-300 space-y-1">
+                        <li>• Major transit analysis</li>
+                        <li>• 30-day timeline</li>
+                        <li>• Life area impacts</li>
+                        <li>• Key dates & timing</li>
+                      </ul>
+                    </div>
+                    <div className="bg-gradient-to-r from-amber-900/20 to-orange-900/20 rounded-lg p-4 border border-amber-500/20">
+                      <h3 className="text-sm font-semibold text-white mb-2">
+                        Premium Report Adds:
+                      </h3>
+                      <ul className="text-xs text-gray-300 space-y-1">
+                        <li>• Exact timing (hours/minutes)</li>
+                        <li>• All aspect interpretations</li>
+                        <li>• 90-day predictions</li>
+                        <li>• Personalized remedies</li>
+                        <li>• Retrograde analysis</li>
+                        <li>• Interactive visualizations</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Main Content */}
+              <div className="lg:col-span-3">
+                {/* Timeline View */}
+                {activeTab === "timeline" && (
+                  <div className="space-y-8">
+                    {selectedChartData && (
+                      <TransitTimeline
+                        birthChart={selectedChartData.chart_data}
+                        selectedDate={forecastDate}
+                        onDateChange={handleDateChange}
+                      />
+                    )}
+
+                    {/* Current Transits Summary */}
+                    <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 rounded-2xl p-6 border border-indigo-500/20">
+                      <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
+                        <Zap className="w-6 h-6 text-indigo-400 mr-3" />
+                        Today's Key Transits
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="bg-dark-800/50 rounded-xl p-4">
+                          <h4 className="text-white font-medium mb-2">
+                            Sun Trine Jupiter
+                          </h4>
+                          <p className="text-gray-300 text-sm mb-2">
+                            Expansion and optimism in personal growth. Excellent
+                            day for taking on new challenges.
+                          </p>
+                          <div className="flex items-center text-xs text-green-400">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Peak: 2:30 PM
+                          </div>
+                        </div>
+                        <div className="bg-dark-800/50 rounded-xl p-4">
+                          <h4 className="text-white font-medium mb-2">
+                            Venus Square Mars
+                          </h4>
+                          <p className="text-gray-300 text-sm mb-2">
+                            Tension in relationships may surface. Practice
+                            patience and clear communication.
+                          </p>
+                          <div className="flex items-center text-xs text-orange-400">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Active all day
+                          </div>
+                        </div>
+                        <div className="bg-dark-800/50 rounded-xl p-4">
+                          <h4 className="text-white font-medium mb-2">
+                            Mercury Sextile Neptune
+                          </h4>
+                          <p className="text-gray-300 text-sm mb-2">
+                            Enhanced intuition and creative communication. Trust
+                            your instincts.
+                          </p>
+                          <div className="flex items-center text-xs text-blue-400">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Evening hours
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Analysis View */}
+                {activeTab === "analysis" && (
+                  <div className="space-y-8">
+                    {/* Selected Chart Info */}
+                    {selectedChartData && (
+                      <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 rounded-2xl p-6 border border-indigo-500/20">
+                        <h2 className="text-xl font-semibold text-white mb-4">
+                          Chart Analysis: {selectedChartData.name}
+                        </h2>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                            <p className="text-gray-400 text-sm">Birth Date</p>
+                            <p className="text-white font-medium">
+                              {new Date(
+                                selectedChartData.birth_date,
+                              ).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-sm">Birth Time</p>
+                            <p className="text-white font-medium">
+                              {selectedChartData.birth_time || "Not provided"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-sm">Location</p>
+                            <p className="text-white font-medium">
+                              {selectedChartData.birth_location?.city ||
+                                "Unknown"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-sm">Chart Type</p>
+                            <p className="text-white font-medium capitalize">
+                              {selectedChartData.chart_type}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Transit Analysis */}
+                    <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
+                      <div className="flex items-center mb-4">
+                        <Target className="w-6 h-6 text-teal-400 mr-3" />
+                        <h2 className="text-xl font-semibold text-white">
+                          Transit Analysis
+                        </h2>
+                      </div>
+                      <div className="prose prose-invert max-w-none">
+                        <p className="text-gray-300 mb-6">
+                          Planetary transits occur when planets in the sky form
+                          aspects to the planets in your birth chart. These
+                          cosmic events influence different areas of your life,
+                          bringing opportunities, challenges, and periods of
+                          growth.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <h3 className="text-lg font-semibold text-white mb-3">
+                              Major Transit Types
+                            </h3>
+                            <div className="space-y-3">
+                              <div className="flex items-center">
+                                <div className="w-3 h-3 rounded bg-gradient-to-r from-purple-500 to-indigo-600 mr-3"></div>
+                                <div>
+                                  <strong className="text-white">
+                                    Conjunctions:
+                                  </strong>
+                                  <span className="text-gray-300 ml-2">
+                                    New beginnings, intensified energy
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center">
+                                <div className="w-3 h-3 rounded bg-gradient-to-r from-orange-500 to-red-600 mr-3"></div>
+                                <div>
+                                  <strong className="text-white">
+                                    Squares:
+                                  </strong>
+                                  <span className="text-gray-300 ml-2">
+                                    Challenges that promote growth
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center">
+                                <div className="w-3 h-3 rounded bg-gradient-to-r from-green-500 to-emerald-600 mr-3"></div>
+                                <div>
+                                  <strong className="text-white">
+                                    Trines:
+                                  </strong>
+                                  <span className="text-gray-300 ml-2">
+                                    Harmony and natural flow
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center">
+                                <div className="w-3 h-3 rounded bg-gradient-to-r from-red-500 to-pink-600 mr-3"></div>
+                                <div>
+                                  <strong className="text-white">
+                                    Oppositions:
+                                  </strong>
+                                  <span className="text-gray-300 ml-2">
+                                    Balance and awareness needed
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center">
+                                <div className="w-3 h-3 rounded bg-gradient-to-r from-blue-500 to-cyan-600 mr-3"></div>
+                                <div>
+                                  <strong className="text-white">
+                                    Sextiles:
+                                  </strong>
+                                  <span className="text-gray-300 ml-2">
+                                    Opportunities for development
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-white mb-3">
+                              Transit Duration
+                            </h3>
+                            <div className="space-y-2">
+                              <div className="flex justify-between">
+                                <span className="text-gray-300">
+                                  Sun, Moon, Mercury:
+                                </span>
+                                <span className="text-white">
+                                  Hours to days
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-300">
+                                  Venus, Mars:
+                                </span>
+                                <span className="text-white">
+                                  Days to weeks
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-300">Jupiter:</span>
+                                <span className="text-white">
+                                  Weeks to months
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-300">Saturn:</span>
+                                <span className="text-white">
+                                  Months to years
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-300">
+                                  Uranus, Neptune, Pluto:
+                                </span>
+                                <span className="text-white">
+                                  Years to decades
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Reports View */}
+                {activeTab === "reports" && (
+                  <div className="space-y-8">
+                    {/* Transit Reports */}
+                    <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-xl font-semibold text-white">
+                          Your Transit Reports
+                        </h2>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => handleGenerateReport(false)}
+                            loading={loading}
+                            size="sm"
+                            disabled={!selectedChart}
+                          >
+                            Generate Basic
+                          </Button>
+                          <Button
+                            onClick={() => handleGenerateReport(true)}
+                            loading={loading}
+                            size="sm"
+                            className="bg-gradient-to-r from-amber-600 to-orange-600"
+                            disabled={!selectedChart}
+                          >
+                            Generate Premium
+                          </Button>
+                        </div>
+                      </div>
+
+                      {reports.filter((r) => r.report_type.includes("transit"))
+                        .length > 0 ? (
+                        <div className="space-y-4">
+                          {reports
+                            .filter((r) => r.report_type.includes("transit"))
+                            .slice(0, 5)
+                            .map((report) => (
+                              <div
+                                key={report.id}
+                                className="bg-gradient-to-r from-teal-900/20 to-cyan-900/20 rounded-xl p-4 border border-teal-500/20"
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="text-white font-medium">
+                                    {report.title}
+                                  </h4>
+                                  <div className="flex items-center space-x-2">
+                                    {report.is_premium && (
+                                      <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-1 rounded-full">
+                                        Premium
+                                      </span>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() =>
+                                        window.open(
+                                          `/astrology/reports/${report.id}`,
+                                          "_blank",
+                                        )
+                                      }
+                                    >
+                                      View
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      icon={Download}
+                                      onClick={() => {
+                                        // TODO: Implement PDF export
+                                        console.log("Export PDF:", report.id);
+                                      }}
+                                    >
+                                      PDF
+                                    </Button>
+                                  </div>
+                                </div>
+                                <p className="text-gray-400 text-sm mb-2">
+                                  {report.content.substring(0, 150)}...
+                                </p>
+                                <div className="text-xs text-gray-500">
+                                  Created:{" "}
+                                  {new Date(
+                                    report.created_at,
+                                  ).toLocaleDateString()}
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <TrendingUp className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                          <h4 className="text-lg font-medium text-gray-400 mb-2">
+                            No Transit Reports Yet
+                          </h4>
+                          <p className="text-gray-500 mb-4">
+                            Generate your first transit report to explore how
+                            current planetary movements affect your chart
+                          </p>
+                          {selectedChart && (
+                            <Button
+                              className="bg-gradient-to-r from-teal-600 to-cyan-600"
+                              disabled={loading}
+                              loading={loading}
+                              onClick={() => handleGenerateReport(false)}
+                            >
+                              Generate Your First Report
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Recent Forecasts */}
+                    {transitForecasts.length > 0 && (
+                      <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
+                        <h2 className="text-xl font-semibold text-white mb-4">
+                          Recent Transit Forecasts
+                        </h2>
+                        <div className="space-y-4">
+                          {transitForecasts.slice(0, 3).map((forecast) => (
+                            <div
+                              key={forecast.id}
+                              className="bg-dark-700 rounded-lg p-4 border border-dark-600"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-white font-medium">
+                                  {forecast.forecast_period} Forecast
+                                </h3>
+                                <span className="text-gray-400 text-sm">
+                                  {new Date(
+                                    forecast.forecast_date,
+                                  ).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <p className="text-gray-300 text-sm leading-relaxed">
+                                {forecast.forecast_content.substring(0, 200)}...
+                              </p>
+                              <div className="mt-2">
+                                <span className="inline-block bg-teal-900/30 text-teal-300 text-xs px-2 py-1 rounded">
+                                  {forecast.significance_level}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </PageLayout>
   );

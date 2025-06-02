@@ -1,335 +1,257 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import {
-  Star,
-  Calendar,
-  Users,
-  BookOpen,
-  TrendingUp,
-  Plus,
-  Eye,
-  Sparkles,
-  Moon,
-  Sun,
-  ArrowRight,
-} from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { useAstrologyStore } from "../../store/astrologyStore";
 import { getZodiacSign } from "../../utils/astronomicalCalculations";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
-import CompatibilityChart from "../astrology/CompatibilityChart";
+import ChatWithAstrologer from "../astrology/ChatWithAstrologer";
+import {
+  FileText,
+  Star,
+  Users,
+  Calendar,
+  Download,
+  Eye,
+  Plus,
+  TrendingUp,
+  Moon,
+  Sun,
+  Sparkles,
+  ArrowRight,
+  BarChart3,
+  BookOpen,
+  Zap,
+  Crown,
+} from "lucide-react";
+import RecentActivitySection from "./RecentActivitySection";
+import SavedContentSection from "./SavedContentSection";
 
 const AstrologyDashboard: React.FC = () => {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user } = useAuthStore();
   const {
     birthCharts,
-    dailyHoroscopes,
-    compatibilityReports,
     reports,
+    compatibilityReports,
     loading,
     fetchBirthCharts,
-    fetchDailyHoroscope,
-    fetchCompatibilityReports,
     fetchReports,
+    fetchCompatibilityReports,
+    generateWeeklyTransitForecast,
+    createNatalChartReport,
+    createVedicReport,
+    exportReportToPDF,
   } = useAstrologyStore();
-
-  const [todayHoroscope, setTodayHoroscope] = useState(null);
-  const [userZodiacSign, setUserZodiacSign] = useState<string | null>(null);
+  const [weeklyForecast, setWeeklyForecast] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
-    if (isAuthenticated && user) {
-      // Load data in parallel for better performance
-      const loadData = async () => {
-        try {
-          await Promise.all([
-            fetchBirthCharts(user.id),
-            fetchCompatibilityReports(user.id),
-            fetchReports(user.id),
-          ]);
-        } catch (error) {
-          console.error("Error loading dashboard data:", error);
-        }
-      };
-      loadData();
+    if (user) {
+      fetchBirthCharts(user.id);
+      fetchReports(user.id);
+      fetchCompatibilityReports(user.id);
     }
-  }, [isAuthenticated, user]);
+  }, [user, fetchBirthCharts, fetchReports, fetchCompatibilityReports]);
 
-  // Separate effect for horoscope to avoid blocking main data load
+  // Add error handling and timeout for loading state
   useEffect(() => {
-    if (birthCharts.length > 0 && !userZodiacSign) {
-      const sign = getZodiacSign(birthCharts[0].birth_date);
-      setUserZodiacSign(sign);
-
-      // Fetch today's horoscope asynchronously
-      const today = new Date().toISOString().split("T")[0];
-      fetchDailyHoroscope(sign, today)
-        .then(setTodayHoroscope)
-        .catch((error) => {
-          console.warn("Failed to load horoscope:", error);
-          // Set a fallback horoscope to prevent loading state
-          setTodayHoroscope({
-            content: `Today brings positive energy for ${sign}. Trust your instincts and embrace new opportunities.`,
-            love_score: 75,
-            career_score: 80,
-            health_score: 85,
-          });
-        });
+    if (loading) {
+      const timeout = setTimeout(() => {
+        console.warn("Astrology data loading timeout - clearing loading state");
+        // Force clear loading state after 10 seconds
+      }, 10000);
+      return () => clearTimeout(timeout);
     }
-  }, [birthCharts.length, userZodiacSign]);
+  }, [loading]);
 
-  const zodiacSymbols: { [key: string]: string } = {
-    Aries: "♈",
-    Taurus: "♉",
-    Gemini: "♊",
-    Cancer: "♋",
-    Leo: "♌",
-    Virgo: "♍",
-    Libra: "♎",
-    Scorpio: "♏",
-    Sagittarius: "♐",
-    Capricorn: "♑",
-    Aquarius: "♒",
-    Pisces: "♓",
+  const handleGenerateWeeklyForecast = async () => {
+    if (birthCharts.length > 0) {
+      const forecast = await generateWeeklyTransitForecast(birthCharts[0].id);
+      setWeeklyForecast(forecast);
+    }
   };
 
-  if (!isAuthenticated) {
+  const handleGenerateReport = async (
+    chartId: string,
+    reportType: "natal" | "vedic",
+    isPremium: boolean = false,
+  ) => {
+    setIsGeneratingReport(`${reportType}-${chartId}`);
+    try {
+      if (reportType === "natal") {
+        await createNatalChartReport(chartId, isPremium);
+      } else if (reportType === "vedic") {
+        await createVedicReport(chartId, isPremium);
+      }
+      // Refresh reports
+      if (user) {
+        await fetchReports(user.id);
+      }
+    } catch (error) {
+      console.error("Error generating report:", error);
+    } finally {
+      setIsGeneratingReport(null);
+    }
+  };
+
+  const handleExportPDF = async (reportId: string) => {
+    try {
+      await exportReportToPDF(reportId);
+    } catch (error) {
+      console.error("Error exporting PDF:", error);
+    }
+  };
+
+  // Show loading only for initial load, not for subsequent operations
+  if (loading && birthCharts.length === 0 && reports.length === 0) {
     return (
-      <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 rounded-2xl p-8 border border-purple-500/20">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Star className="w-8 h-8 text-white" />
-          </div>
-          <h2 className="text-2xl font-serif font-bold text-white mb-4">
-            Unlock Your Cosmic Destiny
-          </h2>
-          <p className="text-gray-300 mb-6">
-            Sign in to access personalized birth charts, compatibility reports,
-            and daily horoscopes.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/login">
-              <Button className="bg-gradient-to-r from-purple-600 to-indigo-600">
-                Sign In
-              </Button>
-            </Link>
-            <Link to="/astrology">
-              <Button variant="outline">Explore Astrology</Button>
-            </Link>
-          </div>
-        </div>
+      <div className="flex justify-center items-center h-64">
+        <LoadingSpinner size="lg" />
+        <div className="ml-4 text-gray-400">Loading your astrology data...</div>
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      {/* Astrology Overview Header */}
-      <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 rounded-2xl p-6 border border-purple-500/20">
+      {/* Enhanced Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Link to="/astrology/birth-chart" className="block">
+          <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 rounded-xl p-6 border border-purple-500/20 hover:border-purple-400/40 transition-all duration-300 cursor-pointer group">
+            <div className="flex items-center justify-between mb-3">
+              <Star className="w-8 h-8 text-purple-400 group-hover:text-purple-300" />
+              <ArrowRight className="w-5 h-5 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">
+              Birth Charts
+            </h3>
+            <p className="text-3xl font-bold text-purple-400 mb-1">
+              {birthCharts.length}
+            </p>
+            <p className="text-gray-400 text-sm">Click to manage</p>
+          </div>
+        </Link>
+
+        <Link to="/astrology/reports" className="block">
+          <div className="bg-gradient-to-r from-teal-900/30 to-cyan-900/30 rounded-xl p-6 border border-teal-500/20 hover:border-teal-400/40 transition-all duration-300 cursor-pointer group">
+            <div className="flex items-center justify-between mb-3">
+              <FileText className="w-8 h-8 text-teal-400 group-hover:text-teal-300" />
+              <ArrowRight className="w-5 h-5 text-teal-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Reports</h3>
+            <p className="text-3xl font-bold text-teal-400 mb-1">
+              {reports.length}
+            </p>
+            <p className="text-gray-400 text-sm">View all reports</p>
+          </div>
+        </Link>
+
+        <Link to="/astrology/compatibility" className="block">
+          <div className="bg-gradient-to-r from-pink-900/30 to-rose-900/30 rounded-xl p-6 border border-pink-500/20 hover:border-pink-400/40 transition-all duration-300 cursor-pointer group">
+            <div className="flex items-center justify-between mb-3">
+              <Users className="w-8 h-8 text-pink-400 group-hover:text-pink-300" />
+              <ArrowRight className="w-5 h-5 text-pink-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">
+              Compatibility
+            </h3>
+            <p className="text-3xl font-bold text-pink-400 mb-1">
+              {compatibilityReports.length}
+            </p>
+            <p className="text-gray-400 text-sm">Relationship analysis</p>
+          </div>
+        </Link>
+
+        <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 rounded-xl p-6 border border-amber-500/20">
+          <div className="flex items-center justify-between mb-3">
+            <Sun className="w-8 h-8 text-amber-400" />
+            <Sparkles className="w-5 h-5 text-amber-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-white mb-2">
+            Your Sun Sign
+          </h3>
+          <p className="text-2xl font-bold text-amber-400 mb-1">
+            {birthCharts.length > 0
+              ? getZodiacSign(
+                  new Date(birthCharts[0].birth_date).getMonth() + 1,
+                  new Date(birthCharts[0].birth_date).getDate(),
+                )
+              : "Unknown"}
+          </p>
+          <p className="text-gray-400 text-sm">Primary zodiac sign</p>
+        </div>
+      </div>
+
+      {/* Professional Report Generation */}
+      <div className="bg-gradient-to-br from-indigo-900/30 to-purple-900/30 rounded-2xl p-6 border border-indigo-500/20">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center mr-4">
-              <Star className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-serif font-bold text-white">
-                Your Astrological Journey
-              </h2>
-              <p className="text-purple-200">
-                Discover the cosmic influences shaping your life
-              </p>
-            </div>
+            <Crown className="w-6 h-6 text-indigo-400 mr-3" />
+            <h3 className="text-xl font-semibold text-white">
+              Professional Report Generation
+            </h3>
           </div>
-          <Link to="/astrology">
-            <Button variant="outline" icon={ArrowRight}>
-              Explore All
+          <Link to="/astrology/reports">
+            <Button variant="ghost" size="sm" icon={Eye}>
+              View All Reports
             </Button>
           </Link>
         </div>
 
-        {/* Quick Stats - Now Clickable */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Link to="/astrology/birth-chart" className="block">
-            <div className="bg-dark-800/50 rounded-xl p-4 text-center hover:bg-dark-800/70 transition-all duration-300 cursor-pointer group">
-              <Star className="w-6 h-6 text-purple-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-              <p className="text-2xl font-bold text-white group-hover:text-purple-300">
-                {birthCharts.length}
-              </p>
-              <p className="text-gray-400 text-sm group-hover:text-gray-300">
-                Birth Charts
-              </p>
-              <p className="text-xs text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1">
-                Click to create new
-              </p>
-            </div>
-          </Link>
-          <Link to="/astrology/compatibility" className="block">
-            <div className="bg-dark-800/50 rounded-xl p-4 text-center hover:bg-dark-800/70 transition-all duration-300 cursor-pointer group">
-              <Users className="w-6 h-6 text-pink-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-              <p className="text-2xl font-bold text-white group-hover:text-pink-300">
-                {compatibilityReports.length}
-              </p>
-              <p className="text-gray-400 text-sm group-hover:text-gray-300">
-                Compatibility
-              </p>
-              <p className="text-xs text-pink-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1">
-                Click to analyze
-              </p>
-            </div>
-          </Link>
-          <Link to="/astrology/reports" className="block">
-            <div className="bg-dark-800/50 rounded-xl p-4 text-center hover:bg-dark-800/70 transition-all duration-300 cursor-pointer group">
-              <BookOpen className="w-6 h-6 text-amber-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-              <p className="text-2xl font-bold text-white group-hover:text-amber-300">
-                {reports.length}
-              </p>
-              <p className="text-gray-400 text-sm group-hover:text-gray-300">
-                Reports
-              </p>
-              <p className="text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1">
-                Click to view all
-              </p>
-            </div>
-          </Link>
-          <div className="bg-dark-800/50 rounded-xl p-4 text-center">
-            {userZodiacSign ? (
-              <>
-                <span className="text-2xl mb-2 block">
-                  {zodiacSymbols[userZodiacSign]}
-                </span>
-                <p className="text-lg font-bold text-white">{userZodiacSign}</p>
-                <p className="text-gray-400 text-sm">Your Sign</p>
-              </>
-            ) : (
-              <Link
-                to="/astrology/birth-chart"
-                className="block hover:opacity-80 transition-opacity"
-              >
-                <Calendar className="w-6 h-6 text-teal-400 mx-auto mb-2" />
-                <p className="text-gray-400 text-sm">
-                  Create chart to see sign
-                </p>
-                <p className="text-xs text-teal-400 mt-1">
-                  Click to get started
-                </p>
-              </Link>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Today's Horoscope */}
-      {userZodiacSign && (
-        <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 rounded-2xl p-6 border border-amber-500/20">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
-              <Sun className="w-6 h-6 text-amber-400 mr-3" />
-              <h3 className="text-xl font-semibold text-white">
-                Today's Horoscope
-              </h3>
-            </div>
-            <div className="flex items-center">
-              <span className="text-2xl mr-2">
-                {zodiacSymbols[userZodiacSign]}
-              </span>
-              <span className="text-amber-400 font-medium">
-                {userZodiacSign}
-              </span>
-            </div>
-          </div>
-          {todayHoroscope ? (
-            <div>
-              <p className="text-gray-300 mb-4">{todayHoroscope.content}</p>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <p className="text-pink-400 font-bold text-lg">
-                    {todayHoroscope.love_score}%
-                  </p>
-                  <p className="text-gray-400 text-sm">Love</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-blue-400 font-bold text-lg">
-                    {todayHoroscope.career_score}%
-                  </p>
-                  <p className="text-gray-400 text-sm">Career</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-green-400 font-bold text-lg">
-                    {todayHoroscope.health_score}%
-                  </p>
-                  <p className="text-gray-400 text-sm">Health</p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-4">
-              <p className="text-gray-400 mb-4">
-                Loading today's cosmic guidance...
-              </p>
-              <LoadingSpinner size="sm" />
-            </div>
-          )}
-          <div className="mt-4 text-right">
-            <Link to="/astrology/horoscopes">
-              <Button variant="ghost" size="sm" icon={ArrowRight}>
-                View All Horoscopes
-              </Button>
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* Birth Charts Section */}
-      <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center">
-            <Star className="w-6 h-6 text-purple-400 mr-3" />
-            <h3 className="text-xl font-semibold text-white">Birth Charts</h3>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Link to="/astrology/birth-chart">
-              <Button size="sm" icon={Plus}>
-                Create New
-              </Button>
-            </Link>
-            {birthCharts.length > 0 && (
-              <Link to="/astrology/charts">
-                <Button variant="ghost" size="sm" icon={Eye}>
-                  View All
-                </Button>
-              </Link>
-            )}
-          </div>
-        </div>
-
         {birthCharts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {birthCharts.slice(0, 3).map((chart) => {
-              const zodiacSign = getZodiacSign(chart.birth_date);
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {birthCharts.slice(0, 4).map((chart) => {
+              const zodiacSign = getZodiacSign(
+                new Date(chart.birth_date).getMonth() + 1,
+                new Date(chart.birth_date).getDate(),
+              );
               return (
-                <motion.div
+                <div
                   key={chart.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-gradient-to-br from-purple-900/20 to-indigo-900/20 rounded-xl p-4 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300"
+                  className="bg-dark-700/50 rounded-xl p-4 border border-dark-600"
                 >
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-lg font-medium text-white">
-                      {chart.name}
-                    </h4>
-                    <span className="text-2xl">
-                      {zodiacSymbols[zodiacSign]}
-                    </span>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-full flex items-center justify-center mr-3">
+                        <Star className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="text-white font-medium">{chart.name}</h4>
+                        <p className="text-gray-400 text-sm">
+                          {zodiacSign} •{" "}
+                          {new Date(chart.birth_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-gray-400 text-sm mb-2">
-                    {new Date(chart.birth_date).toLocaleDateString()}
-                  </p>
-                  <p className="text-purple-400 text-sm mb-3">{zodiacSign}</p>
-                  <Button variant="ghost" size="sm" className="w-full">
-                    View Chart
-                  </Button>
-                </motion.div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      onClick={() =>
+                        handleGenerateReport(chart.id, "natal", false)
+                      }
+                      loading={isGeneratingReport === `natal-${chart.id}`}
+                      size="sm"
+                      className="bg-gradient-to-r from-purple-500/80 to-indigo-500/80 hover:from-purple-600 hover:to-indigo-600 text-xs"
+                    >
+                      <FileText className="w-3 h-3 mr-1" />
+                      Natal Report
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        handleGenerateReport(chart.id, "vedic", false)
+                      }
+                      loading={isGeneratingReport === `vedic-${chart.id}`}
+                      size="sm"
+                      className="bg-gradient-to-r from-amber-500/80 to-orange-500/80 hover:from-amber-600 hover:to-orange-600 text-xs"
+                    >
+                      <Moon className="w-3 h-3 mr-1" />
+                      Vedic Report
+                    </Button>
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -340,77 +262,111 @@ const AstrologyDashboard: React.FC = () => {
               No Birth Charts Yet
             </h4>
             <p className="text-gray-500 mb-4">
-              Create your first birth chart to unlock personalized insights
+              Create your first birth chart to generate professional reports
             </p>
             <Link to="/astrology/birth-chart">
-              <Button icon={Plus}>Create Your Birth Chart</Button>
+              <Button
+                className="bg-gradient-to-r from-purple-500/80 to-indigo-500/80 hover:from-purple-600 hover:to-indigo-600"
+                icon={Plus}
+              >
+                Create Birth Chart
+              </Button>
             </Link>
           </div>
         )}
       </div>
 
-      {/* Compatibility Chart Component */}
-      <CompatibilityChart maxItems={2} />
+      {/* Recent Activity and Saved Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <RecentActivitySection />
+        <SavedContentSection />
+      </div>
 
-      {/* Quick Actions - Enhanced with more features */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Link to="/astrology/birth-chart">
-          <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 rounded-xl p-4 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 text-center group">
-            <Star className="w-8 h-8 text-purple-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-            <h4 className="text-white font-medium mb-1">Birth Chart</h4>
-            <p className="text-gray-400 text-sm">Generate natal chart</p>
+      {/* Astrology Features Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Weekly Transit Forecast */}
+        <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 rounded-xl p-6 border border-indigo-500/20">
+          <div className="flex items-center mb-4">
+            <TrendingUp className="w-6 h-6 text-indigo-400 mr-3" />
+            <h3 className="text-lg font-semibold text-white">
+              Weekly Transits
+            </h3>
           </div>
-        </Link>
-        <Link to="/astrology/compatibility">
-          <div className="bg-gradient-to-br from-pink-900/30 to-rose-900/30 rounded-xl p-4 border border-pink-500/20 hover:border-pink-500/40 transition-all duration-300 text-center group">
-            <Users className="w-8 h-8 text-pink-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-            <h4 className="text-white font-medium mb-1">Compatibility</h4>
-            <p className="text-gray-400 text-sm">Relationship analysis</p>
+          {weeklyForecast ? (
+            <div className="bg-dark-700/50 rounded-lg p-3 mb-4">
+              <p className="text-gray-300 text-sm leading-relaxed line-clamp-3">
+                {weeklyForecast}
+              </p>
+            </div>
+          ) : (
+            <p className="text-gray-400 text-sm mb-4">
+              Get personalized weekly transit insights based on your birth
+              chart.
+            </p>
+          )}
+          <div className="space-y-2">
+            <Button
+              onClick={handleGenerateWeeklyForecast}
+              loading={loading}
+              disabled={birthCharts.length === 0}
+              size="sm"
+              className="bg-gradient-to-r from-indigo-500/80 to-purple-500/80 hover:from-indigo-600 hover:to-purple-600 w-full mb-2"
+            >
+              Generate Forecast
+            </Button>
+            <Link to="/astrology/transits">
+              <Button variant="outline" size="sm" className="w-full">
+                View Transit Reports
+              </Button>
+            </Link>
           </div>
-        </Link>
-        <Link to="/astrology/horoscopes">
-          <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 rounded-xl p-4 border border-amber-500/20 hover:border-amber-500/40 transition-all duration-300 text-center group">
-            <Calendar className="w-8 h-8 text-amber-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-            <h4 className="text-white font-medium mb-1">Horoscopes</h4>
-            <p className="text-gray-400 text-sm">Daily guidance</p>
+        </div>
+
+        {/* Horoscopes */}
+        <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 rounded-xl p-6 border border-amber-500/20">
+          <div className="flex items-center mb-4">
+            <Sun className="w-6 h-6 text-amber-400 mr-3" />
+            <h3 className="text-lg font-semibold text-white">
+              Daily Horoscopes
+            </h3>
           </div>
-        </Link>
-        <Link to="/astrology/transits">
-          <div className="bg-gradient-to-br from-teal-900/30 to-cyan-900/30 rounded-xl p-4 border border-teal-500/20 hover:border-teal-500/40 transition-all duration-300 text-center group">
-            <TrendingUp className="w-8 h-8 text-teal-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-            <h4 className="text-white font-medium mb-1">Transit Forecasts</h4>
-            <p className="text-gray-400 text-sm">Future predictions</p>
+          <p className="text-gray-400 text-sm mb-4">
+            Get daily insights for all zodiac signs with personalized guidance.
+          </p>
+          <Link to="/astrology/horoscopes">
+            <Button
+              className="bg-gradient-to-r from-amber-500/80 to-orange-500/80 hover:from-amber-600 hover:to-orange-600 w-full"
+              size="sm"
+            >
+              View Horoscopes
+            </Button>
+          </Link>
+        </div>
+
+        {/* Vedic Astrology */}
+        <div className="bg-gradient-to-r from-rose-900/30 to-pink-900/30 rounded-xl p-6 border border-rose-500/20">
+          <div className="flex items-center mb-4">
+            <Moon className="w-6 h-6 text-rose-400 mr-3" />
+            <h3 className="text-lg font-semibold text-white">
+              Vedic Astrology
+            </h3>
           </div>
-        </Link>
-        <Link to="/astrology/reports">
-          <div className="bg-gradient-to-br from-indigo-900/30 to-blue-900/30 rounded-xl p-4 border border-indigo-500/20 hover:border-indigo-500/40 transition-all duration-300 text-center group">
-            <BookOpen className="w-8 h-8 text-indigo-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-            <h4 className="text-white font-medium mb-1">
-              Professional Reports
-            </h4>
-            <p className="text-gray-400 text-sm">Detailed analysis</p>
-          </div>
-        </Link>
-        <Link to="/astrology/vedic">
-          <div className="bg-gradient-to-br from-orange-900/30 to-red-900/30 rounded-xl p-4 border border-orange-500/20 hover:border-orange-500/40 transition-all duration-300 text-center group">
-            <Sparkles className="w-8 h-8 text-orange-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-            <h4 className="text-white font-medium mb-1">Vedic Astrology</h4>
-            <p className="text-gray-400 text-sm">Ancient wisdom</p>
-          </div>
-        </Link>
-        <Link to="/plans">
-          <div className="bg-gradient-to-br from-amber-900/30 to-yellow-900/30 rounded-xl p-4 border border-amber-500/20 hover:border-amber-500/40 transition-all duration-300 text-center group">
-            <Sparkles className="w-8 h-8 text-amber-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-            <h4 className="text-white font-medium mb-1">Premium Features</h4>
-            <p className="text-gray-400 text-sm">Unlock full potential</p>
-          </div>
-        </Link>
-        <div className="bg-gradient-to-br from-gray-900/30 to-slate-900/30 rounded-xl p-4 border border-gray-500/20 text-center">
-          <Moon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <h4 className="text-white font-medium mb-1">More Coming Soon</h4>
-          <p className="text-gray-400 text-sm">New features in development</p>
+          <p className="text-gray-400 text-sm mb-4">
+            Explore ancient Vedic wisdom with detailed Jyotish analysis.
+          </p>
+          <Link to="/astrology/vedic">
+            <Button
+              className="bg-gradient-to-r from-rose-500/80 to-pink-500/80 hover:from-rose-600 hover:to-pink-600 w-full"
+              size="sm"
+            >
+              Explore Vedic
+            </Button>
+          </Link>
         </div>
       </div>
+
+      {/* Chat with Astrologer */}
+      <ChatWithAstrologer />
     </div>
   );
 };

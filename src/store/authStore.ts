@@ -10,12 +10,27 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   justConfirmedEmailAndSignedIn: boolean;
+
+  // Core auth actions
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+
+  // Profile management
   fetchUserProfile: (userId: string) => Promise<Partial<User> | null>;
+  updateUserProfile: (updates: Partial<User>) => Promise<void>;
+
+  // Permission helpers
+  hasPermission: (action: string) => boolean;
+  isPremiumUser: () => boolean;
+  isAdminUser: () => boolean;
+
+  // Auth initialization
   initializeAuth: () => () => void;
   setJustConfirmedEmailAndSignedIn: (value: boolean) => void;
+
+  // Error handling
+  clearError: () => void;
 }
 
 const mapSupabaseUserToAppUser = (
@@ -52,6 +67,72 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setJustConfirmedEmailAndSignedIn: (value: boolean) => {
     set({ justConfirmedEmailAndSignedIn: value });
+  },
+
+  updateUserProfile: async (updates: Partial<User>) => {
+    const { user } = get();
+    if (!user) {
+      throw new Error("No authenticated user");
+    }
+
+    set({ isLoading: true, error: null });
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          name: updates.name,
+          avatar_url: updates.avatarUrl,
+          preferences: updates.preferences,
+          saved_content: updates.savedContent,
+        })
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+      set({
+        user: { ...user, ...updates },
+        isLoading: false,
+      });
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  hasPermission: (action: string) => {
+    const { user } = get();
+    if (!user) return false;
+
+    // Admin has all permissions
+    if (user.isAdmin) return true;
+
+    // Define permission rules
+    const permissions: { [key: string]: boolean } = {
+      "create:birth_chart": true, // All authenticated users
+      "create:basic_report": true, // All authenticated users
+      "create:premium_report": user.isPremium, // Premium users only
+      "create:vedic_report": user.isPremium, // Premium users only
+      "create:compatibility_report": true, // All authenticated users
+      "export:pdf": user.isPremium, // Premium users only
+      "access:advanced_features": user.isPremium, // Premium users only
+      "manage:admin": user.isAdmin, // Admin only
+    };
+
+    return permissions[action] || false;
+  },
+
+  isPremiumUser: () => {
+    const { user } = get();
+    return user?.isPremium || user?.isAdmin || false;
+  },
+
+  isAdminUser: () => {
+    const { user } = get();
+    return user?.isAdmin || false;
+  },
+
+  clearError: () => {
+    set({ error: null });
   },
 
   fetchUserProfile: async (userId: string): Promise<Partial<User> | null> => {

@@ -48,6 +48,10 @@ const ReportsPage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
     null,
   );
+  const [downloadingReports, setDownloadingReports] = useState<Set<string>>(
+    new Set(),
+  );
+  const [viewingReport, setViewingReport] = useState<string | null>(null);
   const reportsPerPage = 10;
 
   const reportTypes = [
@@ -285,10 +289,86 @@ const ReportsPage: React.FC = () => {
   };
 
   const handleExportPDF = async (reportId: string) => {
-    const pdfUrl = await exportReportToPDF(reportId);
-    if (pdfUrl) {
-      window.open(pdfUrl, "_blank");
+    setDownloadingReports((prev) => new Set(prev).add(reportId));
+    try {
+      const pdfUrl = await exportReportToPDF(reportId);
+      if (pdfUrl) {
+        // PDF generation successful - file should be downloaded automatically
+        console.log("PDF generated successfully");
+      }
+    } catch (error) {
+      console.error("PDF export failed:", error);
+    } finally {
+      setDownloadingReports((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(reportId);
+        return newSet;
+      });
     }
+  };
+
+  const handleViewReport = (reportId: string) => {
+    setViewingReport(reportId);
+    const report = reports.find((r) => r.id === reportId);
+    if (report) {
+      // Create a modal or new page to display the report content
+      const reportWindow = window.open("", "_blank");
+      if (reportWindow) {
+        reportWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>${report.title}</title>
+            <style>
+              body { 
+                font-family: Arial, sans-serif; 
+                max-width: 800px; 
+                margin: 0 auto; 
+                padding: 20px; 
+                line-height: 1.6;
+                background-color: #f5f5f5;
+              }
+              .header {
+                text-align: center;
+                border-bottom: 2px solid #8B6947;
+                padding-bottom: 20px;
+                margin-bottom: 30px;
+              }
+              .content {
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+              }
+              h1 { color: #8B6947; }
+              h2 { color: #8B6947; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+              .report-meta {
+                background: #f9f9f9;
+                padding: 15px;
+                border-radius: 5px;
+                margin-bottom: 20px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>${report.title}</h1>
+              <div class="report-meta">
+                <p><strong>Report Type:</strong> ${report.report_type}</p>
+                <p><strong>Created:</strong> ${new Date(report.created_at).toLocaleDateString()}</p>
+                <p><strong>Status:</strong> ${report.is_premium ? "Premium" : "Free"} Report</p>
+              </div>
+            </div>
+            <div class="content">
+              ${report.content.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")}
+            </div>
+          </body>
+          </html>
+        `);
+        reportWindow.document.close();
+      }
+    }
+    setViewingReport(null);
   };
 
   const handleDeleteReport = async (reportId: string) => {
@@ -627,25 +707,41 @@ const ReportsPage: React.FC = () => {
                                   Premium
                                 </span>
                               )}
-                              <Button variant="ghost" size="sm" icon={Eye}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon={Eye}
+                                onClick={() => handleViewReport(report.id)}
+                                loading={viewingReport === report.id}
+                              >
                                 View
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                icon={Download}
+                                icon={
+                                  downloadingReports.has(report.id)
+                                    ? undefined
+                                    : Download
+                                }
                                 onClick={() => handleExportPDF(report.id)}
+                                loading={downloadingReports.has(report.id)}
+                                disabled={downloadingReports.has(report.id)}
                               >
-                                PDF
+                                {downloadingReports.has(report.id)
+                                  ? "Generating..."
+                                  : "PDF"}
                               </Button>
-                              <button
-                                onClick={() => setShowDeleteConfirm(report.id)}
-                                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors"
-                                title="Delete Report"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
                             </div>
+                          </div>
+                          <div className="flex items-center justify-end mt-2">
+                            <button
+                              onClick={() => setShowDeleteConfirm(report.id)}
+                              className="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Delete Report"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                           <p className="text-gray-300 text-sm line-clamp-3">
                             {report.content}

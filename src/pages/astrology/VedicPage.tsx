@@ -11,8 +11,12 @@ import {
   BookOpen,
   Eye,
   Crown,
+  Download,
+  FileText,
+  Smartphone,
 } from "lucide-react";
 import PageLayout from "../../components/layout/PageLayout";
+import VedicChart from "../../components/astrology/VedicChart";
 import { useAuthStore } from "../../store/authStore";
 import { useAstrologyStore } from "../../store/astrologyStore";
 import Button from "../../components/ui/Button";
@@ -21,17 +25,76 @@ import LoadingSpinner from "../../components/ui/LoadingSpinner";
 const VedicPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuthStore();
-  const { birthCharts, loading, fetchBirthCharts } = useAstrologyStore();
+  const {
+    birthCharts,
+    loading,
+    fetchBirthCharts,
+    createVedicReport,
+    reports,
+    fetchReports,
+  } = useAstrologyStore();
   const [selectedChart, setSelectedChart] = useState<string>("");
+  const [activeView, setActiveView] = useState<
+    "overview" | "chart" | "reports"
+  >("overview");
+  const [selectedChartData, setSelectedChartData] = useState<any>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isPremiumUser, setIsPremiumUser] = useState(false);
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Check premium status
+  useEffect(() => {
+    // TODO: Implement actual premium check from user subscription
+    setIsPremiumUser(user?.subscription_plan !== "free");
+  }, [user]);
 
   useEffect(() => {
     if (isAuthenticated && user) {
       fetchBirthCharts(user.id);
+      fetchReports(user.id);
       if (birthCharts.length > 0 && !selectedChart) {
         setSelectedChart(birthCharts[0].id);
+        setSelectedChartData(birthCharts[0]);
       }
     }
   }, [isAuthenticated, user, birthCharts.length]);
+
+  useEffect(() => {
+    if (selectedChart && birthCharts.length > 0) {
+      const chart = birthCharts.find((c) => c.id === selectedChart);
+      setSelectedChartData(chart);
+    }
+  }, [selectedChart, birthCharts]);
+
+  const handleGenerateVedicReport = async (isPremium: boolean = false) => {
+    if (!selectedChart) return;
+
+    setIsGeneratingReport(true);
+    try {
+      const report = await createVedicReport(selectedChart, isPremium);
+      if (report) {
+        setActiveView("reports");
+        // Refresh reports
+        if (user) {
+          await fetchReports(user.id);
+        }
+      }
+    } catch (error) {
+      console.error("Error generating Vedic report:", error);
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
 
   const vedicFeatures = [
     {
@@ -79,7 +142,9 @@ const VedicPage: React.FC = () => {
       <div className="bg-gradient-to-br from-dark-900 via-dark-850 to-dark-800 min-h-screen">
         <div className="container mx-auto px-4 py-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div
+            className={`flex ${isMobile ? "flex-col space-y-4" : "items-center justify-between"} mb-8`}
+          >
             <div className="flex items-center">
               <button
                 onClick={() => navigate("/astrology")}
@@ -88,7 +153,9 @@ const VedicPage: React.FC = () => {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h1 className="text-3xl md:text-4xl font-serif font-bold text-white mb-2">
+                <h1
+                  className={`${isMobile ? "text-2xl" : "text-3xl md:text-4xl"} font-serif font-bold text-white mb-2`}
+                >
                   Vedic Astrology
                 </h1>
                 <p className="text-gray-400">
@@ -96,10 +163,49 @@ const VedicPage: React.FC = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center space-x-2">
+              {isMobile && <Smartphone className="w-6 h-6 text-blue-400" />}
+              {isPremiumUser && <Crown className="w-6 h-6 text-yellow-400" />}
               <Sparkles className="w-8 h-8 text-orange-400" />
             </div>
           </div>
+
+          {/* Navigation Tabs */}
+          {isAuthenticated && birthCharts.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-8">
+              <button
+                onClick={() => setActiveView("overview")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  activeView === "overview"
+                    ? "bg-orange-600 text-white"
+                    : "bg-dark-600 text-gray-300 hover:bg-dark-500"
+                }`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveView("chart")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  activeView === "chart"
+                    ? "bg-orange-600 text-white"
+                    : "bg-dark-600 text-gray-300 hover:bg-dark-500"
+                }`}
+              >
+                Vedic Chart
+              </button>
+              <button
+                onClick={() => setActiveView("reports")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  activeView === "reports"
+                    ? "bg-orange-600 text-white"
+                    : "bg-dark-600 text-gray-300 hover:bg-dark-500"
+                }`}
+              >
+                Reports (
+                {reports.filter((r) => r.report_type.includes("vedic")).length})
+              </button>
+            </div>
+          )}
 
           {/* Hero Section */}
           <div className="bg-gradient-to-r from-orange-900/30 to-red-900/30 rounded-2xl p-8 mb-8 border border-orange-500/20">
@@ -116,7 +222,7 @@ const VedicPage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Button
                     onClick={() => navigate("/signup")}
-                    className="bg-gradient-to-r from-orange-600 to-red-600"
+                    className="bg-gradient-to-r from-orange-500/80 to-red-500/80 hover:from-orange-600 hover:to-red-600"
                   >
                     Sign Up to Explore
                   </Button>
@@ -127,7 +233,7 @@ const VedicPage: React.FC = () => {
               ) : birthCharts.length === 0 ? (
                 <Button
                   onClick={() => navigate("/astrology/birth-chart")}
-                  className="bg-gradient-to-r from-orange-600 to-red-600"
+                  className="bg-gradient-to-r from-orange-500/80 to-red-500/80 hover:from-orange-600 hover:to-red-600"
                 >
                   Create Birth Chart First
                 </Button>
@@ -151,30 +257,18 @@ const VedicPage: React.FC = () => {
                   </div>
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <Button
-                      className="bg-gradient-to-r from-orange-600 to-red-600"
-                      disabled={!selectedChart}
-                      onClick={() => {
-                        if (selectedChart) {
-                          // Navigate to create Vedic report
-                          navigate(
-                            `/astrology/reports?chartId=${selectedChart}&type=vedic`,
-                          );
-                        }
-                      }}
+                      className="bg-gradient-to-r from-orange-500/80 to-red-500/80 hover:from-orange-600 hover:to-red-600"
+                      disabled={!selectedChart || isGeneratingReport}
+                      loading={isGeneratingReport}
+                      onClick={() => handleGenerateVedicReport(false)}
                     >
                       Generate Basic Vedic Report
                     </Button>
                     <Button
-                      className="bg-gradient-to-r from-amber-600 to-orange-600"
-                      disabled={!selectedChart}
-                      onClick={() => {
-                        if (selectedChart) {
-                          // Navigate to create Premium Vedic report
-                          navigate(
-                            `/astrology/reports?chartId=${selectedChart}&type=vedic-premium`,
-                          );
-                        }
-                      }}
+                      className="bg-gradient-to-r from-amber-500/80 to-orange-500/80 hover:from-amber-600 hover:to-orange-600"
+                      disabled={!selectedChart || isGeneratingReport}
+                      loading={isGeneratingReport}
+                      onClick={() => handleGenerateVedicReport(true)}
                     >
                       Generate Premium Report
                     </Button>
@@ -184,39 +278,224 @@ const VedicPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Features Grid */}
-          <div className="mb-12">
-            <h3 className="text-2xl font-serif font-bold text-white mb-8 text-center">
-              Vedic Astrology Features
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {vedicFeatures.map((feature, index) => {
-                const Icon = feature.icon;
-                return (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: index * 0.1 }}
-                    className="bg-dark-800 rounded-2xl p-6 border border-dark-700 hover:border-orange-500/40 transition-all duration-300"
-                  >
-                    <div
-                      className={`inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4 bg-gradient-to-br ${feature.color}`}
-                    >
-                      <Icon className="w-6 h-6 text-white" />
-                    </div>
-                    <h4 className="text-lg font-semibold text-white mb-2">
-                      {feature.title}
-                    </h4>
-                    <p className="text-gray-400 text-sm">
-                      {feature.description}
-                    </p>
-                  </motion.div>
-                );
-              })}
+          {/* Main Content Based on Active View */}
+          {activeView === "overview" && (
+            <>
+              {/* Features Grid */}
+              <div className="mb-12">
+                <h3 className="text-2xl font-serif font-bold text-white mb-8 text-center">
+                  Vedic Astrology Features
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {vedicFeatures.map((feature, index) => {
+                    const Icon = feature.icon;
+                    return (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: index * 0.1 }}
+                        className="bg-dark-800 rounded-2xl p-6 border border-dark-700 hover:border-orange-500/40 transition-all duration-300"
+                      >
+                        <div
+                          className={`inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4 bg-gradient-to-br ${feature.color}`}
+                        >
+                          <Icon className="w-6 h-6 text-white" />
+                        </div>
+                        <h4 className="text-lg font-semibold text-white mb-2">
+                          {feature.title}
+                        </h4>
+                        <p className="text-gray-400 text-sm">
+                          {feature.description}
+                        </p>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Vedic Chart View */}
+          {activeView === "chart" && selectedChartData && (
+            <div className="mb-12">
+              <VedicChart
+                vedicData={{
+                  lagnaChart: selectedChartData.chart_data.houses || [],
+                  navamsaChart: selectedChartData.chart_data.houses || [],
+                  birthNakshatra: {
+                    name: "Ashwini",
+                    pada: 1,
+                    lord: "Ketu",
+                    deity: "Ashwini Kumaras",
+                    symbol: "Horse's Head",
+                    degree: 15.5,
+                    characteristics: [
+                      "Healing",
+                      "Swift Action",
+                      "Initiative",
+                      "Pioneering",
+                    ],
+                  },
+                  currentDasha: {
+                    mahadasha: "Venus",
+                    antardasha: "Mercury",
+                    remainingYears: 3.2,
+                    endDate: new Date(
+                      Date.now() + 3.2 * 365 * 24 * 60 * 60 * 1000,
+                    ).toISOString(),
+                    effects: [
+                      "Creativity",
+                      "Relationships",
+                      "Artistic pursuits",
+                    ],
+                  },
+                  vimshottariDasha: [
+                    {
+                      planet: "Venus",
+                      startDate: new Date(
+                        Date.now() - 2 * 365 * 24 * 60 * 60 * 1000,
+                      ).toISOString(),
+                      endDate: new Date(
+                        Date.now() + 3.2 * 365 * 24 * 60 * 60 * 1000,
+                      ).toISOString(),
+                      years: 20,
+                    },
+                    {
+                      planet: "Sun",
+                      startDate: new Date(
+                        Date.now() + 3.2 * 365 * 24 * 60 * 60 * 1000,
+                      ).toISOString(),
+                      endDate: new Date(
+                        Date.now() + 9.2 * 365 * 24 * 60 * 60 * 1000,
+                      ).toISOString(),
+                      years: 6,
+                    },
+                  ],
+                }}
+                userName={selectedChartData.name}
+                birthDate={selectedChartData.birth_date}
+                isPremiumUser={isPremiumUser}
+                showDetailedAnalysis={isPremiumUser}
+                className="mb-8"
+              />
             </div>
-          </div>
+          )}
+
+          {/* Reports View */}
+          {activeView === "reports" && (
+            <div className="mb-12">
+              <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-white flex items-center">
+                    <FileText className="w-6 h-6 text-orange-400 mr-3" />
+                    Your Vedic Reports
+                  </h3>
+                  {selectedChart && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isGeneratingReport}
+                        loading={isGeneratingReport}
+                        onClick={() => handleGenerateVedicReport(false)}
+                      >
+                        Generate Basic
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-gradient-to-r from-amber-500/80 to-orange-500/80"
+                        disabled={isGeneratingReport}
+                        loading={isGeneratingReport}
+                        onClick={() => handleGenerateVedicReport(true)}
+                      >
+                        Generate Premium
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {reports.filter((r) => r.report_type.includes("vedic")).length >
+                0 ? (
+                  <div className="space-y-4">
+                    {reports
+                      .filter((r) => r.report_type.includes("vedic"))
+                      .slice(0, 5)
+                      .map((report) => (
+                        <div
+                          key={report.id}
+                          className="bg-gradient-to-r from-orange-900/20 to-red-900/20 rounded-xl p-4 border border-orange-500/20"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-white font-medium">
+                              {report.title}
+                            </h4>
+                            <div className="flex items-center space-x-2">
+                              {report.is_premium && (
+                                <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-1 rounded-full flex items-center">
+                                  <Crown className="w-3 h-3 mr-1" />
+                                  Premium
+                                </span>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                icon={Eye}
+                                onClick={() =>
+                                  navigate(`/astrology/reports/${report.id}`)
+                                }
+                              >
+                                View
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                icon={Download}
+                                onClick={() => {
+                                  // TODO: Implement PDF export
+                                  console.log("Export PDF:", report.id);
+                                }}
+                              >
+                                PDF
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="text-gray-400 text-sm mb-2">
+                            {report.content.substring(0, 150)}...
+                          </p>
+                          <div className="text-xs text-gray-500">
+                            Created:{" "}
+                            {new Date(report.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                    <h4 className="text-lg font-medium text-gray-400 mb-2">
+                      No Vedic Reports Yet
+                    </h4>
+                    <p className="text-gray-500 mb-4">
+                      Generate your first Vedic astrology report to explore your
+                      spiritual path
+                    </p>
+                    {selectedChart && (
+                      <Button
+                        className="bg-gradient-to-r from-orange-500/80 to-red-500/80"
+                        disabled={isGeneratingReport}
+                        loading={isGeneratingReport}
+                        onClick={() => handleGenerateVedicReport(false)}
+                      >
+                        Generate Your First Report
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Vedic Chart Preview */}
           {isAuthenticated && birthCharts.length > 0 && (
@@ -297,7 +576,7 @@ const VedicPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 onClick={() => navigate("/plans")}
-                className="bg-gradient-to-r from-purple-600 to-indigo-600"
+                className="bg-gradient-to-r from-purple-500/80 to-indigo-500/80 hover:from-purple-600 hover:to-indigo-600"
               >
                 Upgrade to Premium
               </Button>
