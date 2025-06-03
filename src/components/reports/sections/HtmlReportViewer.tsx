@@ -1,80 +1,32 @@
-import React, { useState, useEffect } from "react";
-import { AstrologyReport } from "../../store/astrologyStore";
-import { supabase } from "../../lib/supabaseClient";
-import LoadingSpinner from "../ui/LoadingSpinner";
-import Button from "../ui/Button";
-import ReportRenderer from "./ReportRenderer";
-import { Download, Eye, X, Crown } from "lucide-react";
+import React, { useState } from "react";
+import { AstrologyReport, BirthChart } from "../../../store/astrologyStore";
+import { Eye, Download, X, Crown } from "lucide-react";
+import Button from "../../ui/Button";
+import ReportRenderer from "../ReportRenderer";
 
-interface HTMLReportViewerProps {
+interface HtmlReportViewerProps {
   report: AstrologyReport;
+  chartData: BirthChart;
   onClose: () => void;
 }
 
-const HTMLReportViewer: React.FC<HTMLReportViewerProps> = ({
+const HtmlReportViewer: React.FC<HtmlReportViewerProps> = ({
   report,
+  chartData,
   onClose,
 }) => {
-  const [loading, setLoading] = useState(true);
-  const [chartData, setChartData] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<"modern" | "legacy">("modern");
-
-  useEffect(() => {
-    const fetchChartData = async () => {
-      setLoading(true);
-      try {
-        // Get birth chart data for the report
-        const { data: chartInfo, error } = await supabase
-          .from("astrology_reports")
-          .select(
-            "*, birth_charts!inner(name, birth_date, birth_time, chart_data, birth_location)",
-          )
-          .eq("id", report.id)
-          .single();
-
-        if (error) throw error;
-
-        setChartData(chartInfo.birth_charts);
-      } catch (error) {
-        console.error("Error fetching chart data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchChartData();
-  }, [report.id]);
+  const [viewMode, setViewMode] = useState<"modern" | "html">("modern");
 
   const generateLegacyHTML = () => {
-    if (!chartData) return "";
-
     const isVedic = report.report_type.includes("vedic");
-    const isHellenistic = report.report_type.includes("hellenistic");
-    const isChinese = report.report_type.includes("chinese");
     const isPremium = report.is_premium;
     const userName = chartData?.name || "User";
     const birthDate = chartData?.birth_date
       ? new Date(chartData.birth_date).toLocaleDateString()
       : "";
-    const birthTime = chartData?.birth_time || "";
     const birthLocation = chartData?.birth_location;
 
-    const getReportTypeTitle = () => {
-      if (isVedic) return "Vedic Astrology Analysis";
-      if (isHellenistic) return "Hellenistic Astrology Analysis";
-      if (isChinese) return "Chinese Astrology Analysis";
-      return "Western Astrology Analysis";
-    };
-
-    const getReportTypeIcon = () => {
-      if (isVedic) return "🕉️";
-      if (isHellenistic) return "🏛️";
-      if (isChinese) return "☯️";
-      return "⭐";
-    };
-
-    return `
-<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -337,36 +289,26 @@ const HTMLReportViewer: React.FC<HTMLReportViewerProps> = ({
                     <value>${birthDate}</value>
                 </div>
                 ${
-                  birthTime
-                    ? `
-                <div class="birth-detail">
-                    <label>Birth Time</label>
-                    <value>${birthTime}</value>
-                </div>
-                `
-                    : ""
-                }
-                ${
                   birthLocation
                     ? `
                 <div class="birth-detail">
                     <label>Birth Location</label>
-                    <value>${birthLocation.city || ""}, ${birthLocation.country || ""}</value>
+                    <value>${birthLocation.city}, ${birthLocation.country}</value>
                 </div>
                 `
                     : ""
                 }
                 <div class="birth-detail">
                     <label>Report Type</label>
-                    <value>${report.report_type.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}</value>
+                    <value>${report.report_type.replace("-", " ").replace(/\b\w/g, (l) => l.toUpperCase())}</value>
                 </div>
             </div>
         </div>
         
         <div class="content-section">
             <h2 class="section-title">
-                <span class="section-icon">${getReportTypeIcon()}</span>
-                ${getReportTypeTitle()}
+                <span class="section-icon">${isVedic ? "🕉️" : "⭐"}</span>
+                ${isVedic ? "Vedic Astrology Analysis" : "Astrological Analysis"}
             </h2>
             <div class="content-text">
                 ${formatReportContent(report.content)}
@@ -384,6 +326,17 @@ const HTMLReportViewer: React.FC<HTMLReportViewerProps> = ({
     <div class="watermark">
         Generated by MysticBanana.com
     </div>
+    
+    <script>
+        function formatReportContent(content) {
+            return content
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>')
+                .replace(/^/, '<p>')
+                .replace(/$/, '</p>');
+        }
+    </script>
 </body>
 </html>`;
   };
@@ -454,36 +407,6 @@ const HTMLReportViewer: React.FC<HTMLReportViewerProps> = ({
     }
   };
 
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-dark-800 rounded-2xl p-8 max-w-md w-full mx-4">
-          <div className="text-center">
-            <LoadingSpinner size="lg" />
-            <p className="text-white mt-4">Loading report data...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!chartData) {
-    return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-dark-800 rounded-2xl p-8 max-w-md w-full mx-4">
-          <div className="text-center">
-            <p className="text-white mb-4">
-              Error: Could not load chart data for this report.
-            </p>
-            <Button onClick={onClose} variant="primary">
-              Close
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
       <div className="bg-dark-900 rounded-2xl w-full max-w-6xl h-full max-h-[90vh] flex flex-col">
@@ -499,7 +422,7 @@ const HTMLReportViewer: React.FC<HTMLReportViewerProps> = ({
               </h2>
               <p className="text-gray-400 text-sm">
                 {report.report_type
-                  .replace(/-/g, " ")
+                  .replace("-", " ")
                   .replace(/\b\w/g, (l) => l.toUpperCase())}{" "}
                 Report
                 {report.is_premium && (
@@ -514,7 +437,7 @@ const HTMLReportViewer: React.FC<HTMLReportViewerProps> = ({
           <div className="flex items-center space-x-2">
             <Button
               onClick={() =>
-                setViewMode(viewMode === "modern" ? "legacy" : "modern")
+                setViewMode(viewMode === "modern" ? "html" : "modern")
               }
               variant="outline"
               size="sm"
@@ -558,4 +481,4 @@ const HTMLReportViewer: React.FC<HTMLReportViewerProps> = ({
   );
 };
 
-export default HTMLReportViewer;
+export default HtmlReportViewer;
