@@ -19,14 +19,17 @@ const TransitsPage: React.FC = () => {
   const { user } = useAuthStore();
   const {
     birthCharts,
+    reports,
     transitForecasts,
     loading,
     error,
     fetchBirthCharts,
+    fetchReports,
     fetchTransitForecasts,
     generateTransitForecast,
     generateTransitReport,
     clearError,
+    exportReportToPDF,
   } = useAstrologyStore();
 
   const [selectedChart, setSelectedChart] = useState<string>("");
@@ -37,13 +40,15 @@ const TransitsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     "timeline" | "reports" | "analysis"
   >("timeline");
+  const [exportingPDFs, setExportingPDFs] = useState<Set<string>>(new Set());
   const [transitData, setTransitData] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
       fetchBirthCharts(user.id);
+      fetchReports(user.id);
     }
-  }, [user, fetchBirthCharts]);
+  }, [user, fetchBirthCharts, fetchReports]);
 
   useEffect(() => {
     if (selectedChart) {
@@ -183,8 +188,9 @@ const TransitsPage: React.FC = () => {
                 <Download className="w-5 h-5 mr-2" />
                 Reports (
                 {
-                  reports.filter((r) => r.report_type.includes("transit"))
-                    .length
+                  (reports || []).filter(
+                    (r) => r.report_type && r.report_type.includes("transit"),
+                  ).length
                 }
                 )
               </button>
@@ -566,11 +572,17 @@ const TransitsPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {reports.filter((r) => r.report_type.includes("transit"))
-                        .length > 0 ? (
+                      {(reports || []).filter(
+                        (r) =>
+                          r.report_type && r.report_type.includes("transit"),
+                      ).length > 0 ? (
                         <div className="space-y-4">
-                          {reports
-                            .filter((r) => r.report_type.includes("transit"))
+                          {(reports || [])
+                            .filter(
+                              (r) =>
+                                r.report_type &&
+                                r.report_type.includes("transit"),
+                            )
                             .slice(0, 5)
                             .map((report) => (
                               <div
@@ -603,9 +615,22 @@ const TransitsPage: React.FC = () => {
                                       size="sm"
                                       variant="ghost"
                                       icon={Download}
-                                      onClick={() => {
-                                        // TODO: Implement PDF export
-                                        console.log("Export PDF:", report.id);
+                                      loading={exportingPDFs.has(report.id)}
+                                      onClick={async () => {
+                                        try {
+                                          setExportingPDFs(prev => new Set(prev).add(report.id));
+                                          await exportReportToPDF(report.id);
+                                          console.log("PDF export successful for:", report.id);
+                                        } catch (error) {
+                                          console.error("PDF export failed:", error);
+                                          alert("Failed to generate PDF. Please try again later.");
+                                        } finally {
+                                          setExportingPDFs(prev => {
+                                            const newSet = new Set(prev);
+                                            newSet.delete(report.id);
+                                            return newSet;
+                                          });
+                                        }
                                       }}
                                     >
                                       PDF

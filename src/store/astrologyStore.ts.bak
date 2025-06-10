@@ -1,0 +1,947 @@
+import { create } from "zustand";
+import { supabase } from "../lib/supabaseClient";
+import { exportReportToPdf } from "../utils/pdfExport";
+
+export interface BirthData {
+  name: string;
+  birthDate: string;
+  birthTime?: string;
+  birthLocation?: {
+    latitude: number;
+    longitude: number;
+    city: string;
+    country: string;
+  };
+}
+
+export interface BirthChart {
+  id: string;
+  name: string;
+  birth_date: string;
+  birth_time?: string;
+  birth_location?: {
+    latitude: number;
+    longitude: number;
+    city: string;
+    country: string;
+  };
+  chart_data: any;
+  user_id: string;
+  created_at: string;
+}
+
+export interface AstrologyReport {
+  id: string;
+  title: string;
+  report_type: string;
+  birth_chart_id: string;
+  content: string;
+  is_premium: boolean;
+  template_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReportTemplate {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  is_premium: boolean;
+  is_public: boolean;
+  sections: TemplateSection[];
+  category_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TemplateSection {
+  name: string;
+  content?: string;
+  order: number;
+}
+
+export interface TemplateCategory {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+}
+
+interface AstrologyState {
+  birthCharts: BirthChart[];
+  reports: AstrologyReport[];
+  templates: ReportTemplate[];
+  templateCategories: TemplateCategory[];
+  currentChart: any | null;
+  loading: boolean;
+  error: string | null;
+  createBirthChart: (birthData: BirthData) => Promise<any>;
+  fetchBirthCharts: (userId: string) => Promise<BirthChart[]>;
+  addBirthChart: (chart: Partial<BirthChart>) => Promise<BirthChart>;
+  fetchReports: (userId: string) => Promise<AstrologyReport[]>;
+  addReport: (report: Partial<AstrologyReport>) => Promise<AstrologyReport>;
+  deleteReport: (reportId: string) => Promise<void>;
+  fetchReportTemplates: (options?: {
+    isPublic?: boolean;
+    categoryId?: string;
+  }) => Promise<ReportTemplate[]>;
+  fetchTemplateCategories: () => Promise<TemplateCategory[]>;
+  createReportFromTemplate: (
+    templateId: string,
+    birthChartId: string,
+    options?: any,
+  ) => Promise<AstrologyReport>;
+  createNatalChartReport: (birthChartId: string, isPremium?: boolean) => Promise<AstrologyReport>;
+  createVedicReport: (birthChartId: string, isPremium?: boolean) => Promise<AstrologyReport>;
+  exportReportToPDF: (reportId: string) => Promise<string>;
+}
+
+// Creating store with defined state and actions
+export const useAstrologyStore = create<AstrologyState>((set) => ({
+  dailyHoroscopes: [],
+  fetchDailyHoroscope: async (sign: string, date: string) => {
+    try {
+      // First try to get from cache
+      const { data: cached, error } = await supabase
+        .from("daily_horoscopes")
+        .select("*")
+        .eq("zodiac_sign", sign)
+        .eq("date", date)
+        .single();
+
+      if (!error && cached && new Date(cached.expires_at) > new Date()) {
+        // Use cached horoscope
+        return {
+          content: cached.content,
+          love_score: cached.love_score,
+          career_score: cached.career_score,
+          health_score: cached.health_score,
+          lucky_numbers: cached.lucky_numbers,
+          lucky_colors: cached.lucky_colors,
+        };
+      }
+
+      // Mock implementation for fetchDailyHoroscope when not in cache
+      return {
+        content: `Daily horoscope for ${sign} on ${date}. The stars align in your favor today.`,
+        love_score: Math.floor(Math.random() * 30) + 70,
+        career_score: Math.floor(Math.random() * 30) + 70,
+        health_score: Math.floor(Math.random() * 30) + 70,
+        lucky_numbers: [
+          Math.floor(Math.random() * 10) + 1,
+          Math.floor(Math.random() * 10) + 11,
+          Math.floor(Math.random() * 10) + 21,
+        ],
+        lucky_colors: ["Purple", "Gold"],
+      };
+    } catch (error) {
+      console.error("Error fetching daily horoscope:", error);
+      // Fallback mock data
+      return {
+        content: `Daily horoscope for ${sign} on ${date}. The stars align in your favor today.`,
+        love_score: Math.floor(Math.random() * 30) + 70,
+        career_score: Math.floor(Math.random() * 30) + 70,
+        health_score: Math.floor(Math.random() * 30) + 70,
+        lucky_numbers: [
+          Math.floor(Math.random() * 10) + 1,
+          Math.floor(Math.random() * 10) + 11,
+          Math.floor(Math.random() * 10) + 21,
+        ],
+        lucky_colors: ["Purple", "Gold"],
+      };
+    }
+  },
+  generateDailyHoroscopes: async (date: string) => {
+    try {
+      console.log(`Generating daily horoscopes for ${date}`);
+      const zodiacSigns = [
+        "Aries",
+        "Taurus",
+        "Gemini",
+        "Cancer",
+        "Leo",
+        "Virgo",
+        "Libra",
+        "Scorpio",
+        "Sagittarius",
+        "Capricorn",
+        "Aquarius",
+        "Pisces",
+      ];
+
+      // Generate and cache horoscopes for all signs
+      for (const sign of zodiacSigns) {
+        // Check if already exists in cache
+        const { data: existing } = await supabase
+          .from("daily_horoscopes")
+          .select("*")
+          .eq("zodiac_sign", sign)
+          .eq("date", date)
+          .single();
+
+        if (!existing) {
+          // Generate mock horoscope data
+          const horoscope = {
+            zodiac_sign: sign,
+            date: date,
+            content: `Daily horoscope for ${sign} on ${date}. The stars align in your favor today.`,
+            love_score: Math.floor(Math.random() * 30) + 70,
+            career_score: Math.floor(Math.random() * 30) + 70,
+            health_score: Math.floor(Math.random() * 30) + 70,
+            lucky_numbers: [
+              Math.floor(Math.random() * 10) + 1,
+              Math.floor(Math.random() * 10) + 11,
+              Math.floor(Math.random() * 10) + 21,
+            ],
+            lucky_colors: ["Purple", "Gold"],
+            expires_at: new Date(
+              Date.now() + 24 * 60 * 60 * 1000,
+            ).toISOString(),
+          };
+
+          // Cache the horoscope
+          await supabase.from("daily_horoscopes").upsert(horoscope);
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Error generating daily horoscopes:", error);
+      return false;
+    }
+  },
+  birthCharts: [],
+  reports: [],
+  templates: [],
+  templateCategories: [],
+  currentChart: null,
+  loading: false,
+  error: null,
+
+  createBirthChart: async (birthData) => {
+    set({ loading: true, error: null });
+    try {
+      // In a real app, this would call an API to calculate the chart
+      // For now, we'll simulate it with a timeout
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Generate mock chart data
+      const chartData = generateMockChartData();
+
+      set({
+        currentChart: { ...birthData, chart_data: chartData },
+        loading: false,
+      });
+      return { ...birthData, chart_data: chartData };
+    } catch (error) {
+      set({ error: "Failed to calculate birth chart", loading: false });
+      throw error;
+    }
+  },
+
+  fetchBirthCharts: async (userId) => {
+    set({ loading: true, error: null });
+    try {
+      const { data, error } = await supabase
+        .from("birth_charts")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      set({ birthCharts: data || [], loading: false });
+      return data || [];
+    } catch (error) {
+      set({ error: "Failed to fetch birth charts", loading: false });
+      throw error;
+    }
+  },
+
+  addBirthChart: async (chart) => {
+    set({ loading: true, error: null });
+    try {
+      const { data, error } = await supabase
+        .from("birth_charts")
+        .insert([chart])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      set((state) => ({
+        birthCharts: [data, ...state.birthCharts],
+        loading: false,
+      }));
+
+      return data;
+    } catch (error) {
+      set({ error: "Failed to save birth chart", loading: false });
+      throw error;
+    }
+  },
+
+  deleteReport: async (reportId) => {
+    try {
+      const { error } = await supabase
+        .from("astrology_reports")
+        .delete()
+        .eq("id", reportId);
+
+      if (error) throw error;
+
+      set((state) => ({
+        reports: state.reports.filter((r) => r.id !== reportId),
+      }));
+    } catch (error) {
+      console.error("Error deleting report:", error);
+      throw error;
+    }
+  },
+
+  fetchReportTemplates: async (options = {}) => {
+    set({ loading: true, error: null });
+    try {
+      let query = supabase.from("report_templates").select("*");
+
+      if (options.isPublic !== undefined) {
+        query = query.eq("is_public", options.isPublic);
+      }
+
+      if (options.categoryId) {
+        query = query.eq("category_id", options.categoryId);
+      }
+
+      const { data, error } = await query.order("name");
+
+      if (error) throw error;
+
+      set({ templates: data || [], loading: false });
+      return data || [];
+    } catch (error) {
+      set({ error: "Failed to fetch report templates", loading: false });
+      throw error;
+    }
+  },
+
+  fetchTemplateCategories: async () => {
+    try {
+      const { data, error } = await supabase
+        .from("template_categories")
+        .select("*")
+        .order("name");
+
+      if (error) throw error;
+
+      set({ templateCategories: data || [] });
+      return data || [];
+    } catch (error) {
+      console.error("Error fetching template categories:", error);
+      throw error;
+    }
+  },
+
+  createReportFromTemplate: async (templateId, birthChartId, options = {}) => {
+    console.log("Report template options:", JSON.stringify(options));
+    try {
+      console.log("Creating report from template", {
+        templateId,
+        birthChartId,
+        options,
+      });
+
+      // Fetch the template
+      const { data: template, error: templateError } = await supabase
+        .from("report_templates")
+        .select("*")
+        .eq("id", templateId)
+        .single();
+
+      if (templateError) {
+        console.error("Template fetch error:", templateError);
+        throw new Error(`Template not found: ${templateError.message}`);
+      }
+
+      if (!template) {
+        throw new Error(`Template with ID ${templateId} not found`);
+      }
+
+      // Fetch the birth chart
+      const { data: birthChart, error: birthChartError } = await supabase
+        .from("birth_charts")
+        .select("*")
+        .eq("id", birthChartId)
+        .single();
+
+      if (birthChartError) {
+        console.error("Birth chart fetch error:", birthChartError);
+        throw new Error(`Birth chart not found: ${birthChartError.message}`);
+      }
+
+      if (!birthChart) {
+        throw new Error(`Birth chart with ID ${birthChartId} not found`);
+      }
+
+      // Generate report title
+      const reportTitle = `${birthChart.name}'s ${template.name}`;
+      console.log("Generated report title:", reportTitle);
+
+      // Create the report record
+      const { data: reportData, error: reportError } = await supabase
+        .from("astrology_reports")
+        .insert([
+          {
+            title: reportTitle,
+            report_type: template.type,
+            birth_chart_id: birthChartId,
+            template_id: templateId,
+            is_premium: options.isPremium || false,
+            content: "Generating report content...", // Placeholder
+          },
+        ])
+        .select()
+        .single();
+
+      if (reportError) {
+        console.error("Report creation error:", reportError);
+        throw new Error(`Failed to create report: ${reportError.message}`);
+      }
+
+      if (!reportData) {
+        throw new Error("Report data is null after creation");
+      }
+
+      // Generate the report content based on the template and birth chart data
+      console.log("Generating report content...", template.type);
+      
+      // Special handling for Chinese reports
+      let reportContent;
+      try {
+        if (template.type === 'chinese') {
+          console.log("Generating Chinese report content");
+          reportContent = `# ${birthChart.name}'s Chinese Astrology Report
+
+## Birth Year Element and Animal
+
+${birthChart.name} was born in the year of the ${getChineseZodiacSign(birthChart.birth_date)} with ${getChineseElement(birthChart.birth_date)} as the governing element.
+
+## Personality Traits
+
+Based on your Chinese zodiac sign, your personality tends to be [personality traits based on sign].
+
+## Compatibility
+
+You are most compatible with people born in the year of the [compatible signs].
+`;
+        } else {
+          reportContent = await generateReportContent(
+            template,
+            birthChart,
+            options,
+          );
+        }
+
+        if (!reportContent) {
+          throw new Error("Generated report content is empty");
+        }
+      } catch (genError) {
+        console.error("Error generating report content:", genError);
+        throw new Error(`Failed to generate ${template.type} report: ${genError instanceof Error ? genError.message : 'Unknown error'}`);
+      }
+
+      console.log("Report content generated, updating report...");
+
+      // Update the report with the generated content
+      const { data: updatedReport, error: updateError } = await supabase
+        .from("astrology_reports")
+        .update({
+          content: reportContent,
+        })
+        .eq("id", reportData.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("Report update error:", updateError);
+        throw new Error(`Failed to update report: ${updateError.message}`);
+      }
+
+      if (!updatedReport) {
+        throw new Error("Updated report data is null");
+      }
+
+      console.log("Report successfully created and updated");
+      return updatedReport;
+    } catch (error) {
+      console.error("Error creating report from template:", error);
+      throw error;
+    }
+  },
+  
+  // Add new functions that were referenced but not implemented
+  createNatalChartReport: async (birthChartId, isPremium = false) => {
+    try {
+      console.log("Creating natal chart report", { birthChartId, isPremium });
+      
+      // Fetch the birth chart
+      const { data: birthChart, error: birthChartError } = await supabase
+        .from("birth_charts")
+        .select("*")
+        .eq("id", birthChartId)
+        .single();
+
+      if (birthChartError) throw birthChartError;
+      if (!birthChart) throw new Error(`Birth chart with ID ${birthChartId} not found`);
+      
+      // Generate report title
+      const reportTitle = `${birthChart.name}'s Natal Chart Report`;
+      
+      // Create the report
+      const { data: report, error: reportError } = await supabase
+        .from("astrology_reports")
+        .insert([
+          {
+            title: reportTitle,
+            report_type: "natal",
+            birth_chart_id: birthChartId,
+            is_premium: isPremium,
+            content: "Generating natal chart report...", // Placeholder
+          },
+        ])
+        .select()
+        .single();
+
+      if (reportError) throw reportError;
+      if (!report) throw new Error("Failed to create natal chart report");
+      
+      // Generate mock report content using the shared helper function
+      const templateData = {
+        name: "Natal Chart Analysis",
+        sections: [
+          { name: "Sun Sign Analysis", content: "", order: 1 },
+          { name: "Moon Sign Analysis", content: "", order: 2 },
+          { name: "Ascendant Analysis", content: "", order: 3 },
+          { name: "Planetary Aspects", content: "", order: 4 },
+        ],
+        type: "natal",
+        is_premium: isPremium
+      };
+      
+      const content = await generateReportContent(
+        templateData,
+        birthChart,
+        { isPremium }
+      );
+      
+      // Update the report with generated content
+      const { data: updatedReport, error: updateError } = await supabase
+        .from("astrology_reports")
+        .update({ content })
+        .eq("id", report.id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
+      if (!updatedReport) throw new Error("Failed to update natal chart report");
+      
+      return updatedReport;
+    } catch (error: unknown) {
+      console.error("Error creating natal chart report:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to generate report: ${errorMessage}`);
+    }
+  },
+  
+  createVedicReport: async (birthChartId, isPremium = false) => {
+    try {
+      console.log("Creating vedic report", { birthChartId, isPremium });
+      
+      // Fetch the birth chart
+      const { data: birthChart, error: birthChartError } = await supabase
+        .from("birth_charts")
+        .select("*")
+        .eq("id", birthChartId)
+        .single();
+
+      if (birthChartError) throw birthChartError;
+      if (!birthChart) throw new Error(`Birth chart with ID ${birthChartId} not found`);
+      
+      // Generate report title
+      const reportTitle = `${birthChart.name}'s Vedic Astrology Report`;
+      
+      // Create the report
+      const { data: report, error: reportError } = await supabase
+        .from("astrology_reports")
+        .insert({
+          title: `${birthChart.name}'s Vedic Astrology Report`,
+          report_type: "vedic",
+          birth_chart_id: birthChartId,
+          content: "Vedic report content will be generated",
+          is_premium: isPremium
+        })
+        .select()
+        .single();
+        
+      if (reportError) throw reportError;
+      return report;
+    } catch (error) {
+
+    if (reportError) throw reportError;
+    if (!report) throw new Error("Failed to create natal chart report");
+    
+    // Generate mock report content using the shared helper function
+    const templateData = {
+      name: "Natal Chart Analysis",
+      sections: [
+        { name: "Sun Sign Analysis", content: "", order: 1 },
+        { name: "Moon Sign Analysis", content: "", order: 2 },
+        { name: "Ascendant Analysis", content: "", order: 3 },
+        { name: "Planetary Aspects", content: "", order: 4 },
+      ],
+      type: "natal",
+      is_premium: isPremium
+    };
+    
+    const content = await generateReportContent(
+      templateData,
+      birthChart,
+      { isPremium }
+    );
+    
+    // Update the report with generated content
+    const { data: updatedReport, error: updateError } = await supabase
+      .from("astrology_reports")
+      .update({ content })
+      .eq("id", report.id)
+      .select()
+      .single();
+    
+    if (updateError) throw updateError;
+    if (!updatedReport) throw new Error("Failed to update natal chart report");
+    
+    return updatedReport;
+  } catch (error: unknown) {
+    console.error("Error creating natal chart report:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to generate report: ${errorMessage}`);
+  }
+},
+
+createVedicReport: async (birthChartId, isPremium = false) => {
+  try {
+    console.log("Creating vedic report", { birthChartId, isPremium });
+    
+    // Fetch the birth chart
+    const { data: birthChart, error: birthChartError } = await supabase
+      .from("birth_charts")
+      .select("*")
+      .eq("id", birthChartId)
+      .single();
+
+    if (birthChartError) throw birthChartError;
+    if (!birthChart) throw new Error(`Birth chart with ID ${birthChartId} not found`);
+    
+    // Generate report title
+    const reportTitle = `${birthChart.name}'s Vedic Astrology Report`;
+    
+    // Create the report
+    const { data: report, error: reportError } = await supabase
+      .from("astrology_reports")
+      .insert({
+        title: `${birthChart.name}'s Vedic Astrology Report`,
+        report_type: "vedic",
+        birth_chart_id: birthChartId,
+        content: "Vedic report content will be generated",
+        is_premium: isPremium
+      })
+      .select()
+      .single();
+      
+    if (reportError) throw reportError;
+    return report;
+  } catch (error) {
+    console.error("Error creating Vedic report:", error);
+    throw error;
+  }
+},
+
+// Helper functions moved inside the store to avoid reference errors
+const getChineseZodiacSign = (birthDate: string): string => {
+  const year = new Date(birthDate).getFullYear();
+  const animals = ["Rat", "Ox", "Tiger", "Rabbit", "Dragon", "Snake", "Horse", "Goat", "Monkey", "Rooster", "Dog", "Pig"];
+  return animals[(year - 4) % 12];
+};
+
+const getChineseElement = (birthDate: string): string => {
+  const year = new Date(birthDate).getFullYear();
+  const elements = ["Wood", "Fire", "Earth", "Metal", "Water"];
+  return elements[Math.floor((year - 4) % 10 / 2)];
+};
+
+// Helper function to generate report content
+const generateReportContent = (
+  template: { 
+    name: string; 
+    sections?: { name: string; content?: string; order: number }[]; 
+    type: string;
+    is_premium: boolean; 
+  },
+  birthChart: BirthChart, 
+  options: { isPremium?: boolean }
+): string => {
+  try {
+    console.log("Generating report content with:", {
+      templateName: template.name,
+      templateType: template.type,
+      birthChartName: birthChart.name,
+      isPremium: options.isPremium,
+    });
+
+    // This is a placeholder implementation
+    // In a real app, this would call an API or edge function
+
+    // Simulate API call delay
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Generate content based on template sections
+    let content = `# ${template.name}\n\n`;
+    content += `Generated for ${birthChart.name} on ${new Date().toLocaleDateString()}\n\n`;
+
+    // Add sections from template
+    if (template.sections && template.sections.length > 0) {
+      console.log(`Processing ${template.sections.length} template sections`);
+
+      template.sections.forEach((section: { name: string; content?: string; order: number }) => {
+        content += `## ${section.name}\n\n`;
+
+        // If section has predefined content, use it
+        if (section.content) {
+          content += `${section.content}\n\n`;
+        } else {
+          // Otherwise generate placeholder content based on section name and birth chart data
+          switch (section.name.toLowerCase()) {
+            case "planetary positions":
+              content += `### Sun\nPosition: ${birthChart.chart_data.planets.find((p: any) => p.name === "Sun")?.sign || "Unknown"} ${birthChart.chart_data.planets.find((p: any) => p.name === "Sun")?.degree || 0}°\n\n`;
+              content += `### Moon\nPosition: ${birthChart.chart_data.planets.find((p: any) => p.name === "Moon")?.sign || "Unknown"} ${birthChart.chart_data.planets.find((p: any) => p.name === "Moon")?.degree || 0}°\n\n`;
+              content += `### Mercury\nPosition: ${birthChart.chart_data.planets.find((p: any) => p.name === "Mercury")?.sign || "Unknown"} ${birthChart.chart_data.planets.find((p: any) => p.name === "Mercury")?.degree || 0}°\n\n`;
+              break;
+
+            case "house analysis":
+              content += `Your 1st house begins in ${birthChart.chart_data.houses[0].sign || "Unknown"}, indicating ${birthChart.chart_data.houses[0].sign === "Aries" ? "a strong sense of self and pioneering spirit" : "qualities related to your self-expression and identity"}.\n\n`;
+              content += `Your 7th house begins in ${birthChart.chart_data.houses[6].sign || "Unknown"}, suggesting ${birthChart.chart_data.houses[6].sign === "Libra" ? "balanced and harmonious partnerships" : "important themes in your relationships"}.\n\n`;
+              content += `Your 7th house begins in ${birthChart.chart_data?.houses?.[6]?.sign || "Unknown"}, suggesting ${birthChart.chart_data?.houses?.[6]?.sign === "Libra" ? "balanced and harmonious partnerships" : "important themes in your relationships"}.\n\n`;
+              break;
+
+            case "aspects":
+              if (
+                birthChart.chart_data?.aspects &&
+                birthChart.chart_data.aspects.length > 0
+              ) {
+                birthChart.chart_data.aspects.slice(0, 3).forEach((aspect: any) => {
+                  content += `${aspect.planet1} ${aspect.aspect} ${aspect.planet2}: This creates a ${aspect.aspect === "trine" ? "harmonious" : aspect.aspect === "square" ? "challenging" : "significant"} dynamic between these planetary energies.\n\n`;
+                });
+              } else {
+                content += `No major aspects found in your chart.\n\n`;
+              }
+              break;
+
+            default:
+              content += `This section contains analysis for ${section.name.toLowerCase()}.\n\n`;
+          }
+        }
+      });
+    } else {
+      console.log("No template sections found, using default sections");
+      // Default sections if template doesn't define any
+      content += `## Planetary Positions\n\n`;
+      content += `The Sun is in ${birthChart.chart_data?.planets.find((p: any) => p.name === "Sun")?.sign || "Unknown"}.\n`;
+      content += `The Moon is in ${birthChart.chart_data?.planets.find((p: any) => p.name === "Moon")?.sign || "Unknown"}.\n\n`;
+
+      content += `## Interpretation\n\n`;
+      content += `This combination suggests a personality that is both [interpretation based on Sun sign] and emotionally [interpretation based on Moon sign].\n\n`;
+
+      if (options.isPremium) {
+        content += `## Premium Insights\n\n`;
+        content += `As a premium subscriber, you receive these additional insights...\n\n`;
+      }
+    }
+
+    console.log("Report content generated successfully");
+    return content;
+  } catch (error) {
+    console.error("Error in generateReportContent:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to generate report content: ${errorMessage}`);
+  }
+};
+
+// Helper function to generate mock chart data
+const generateMockChartData = () => {
+  // In a real app, this would be calculated based on the birth data
+  // using an astronomical library or API
+  const signs = [
+    "Aries",
+    "Taurus",
+    "Gemini",
+    "Cancer",
+    "Leo",
+    "Virgo",
+    "Libra",
+    "Scorpio",
+    "Sagittarius",
+    "Capricorn",
+    "Aquarius",
+    "Pisces",
+  ];
+
+  const planets = [
+    "Sun",
+    "Moon",
+    "Mercury",
+    "Venus",
+    "Mars",
+    "Jupiter",
+    "Saturn",
+    "Uranus",
+    "Neptune",
+    "Pluto",
+  ];
+
+  const aspectTypes = [
+    "conjunction",
+    "opposition",
+    "trine",
+    "square",
+    "sextile",
+  ];
+
+  // Generate random planetary positions
+  const mockPlanets = planets.map((planet) => {
+    const signIndex = Math.floor(Math.random() * 12);
+    const degree = Math.random() * 30;
+    const house = Math.floor(Math.random() * 12) + 1;
+
+    return {
+      name: planet,
+      sign: signs[signIndex],
+      degree,
+      house,
+      longitude: signIndex * 30 + degree,
+    };
+  });
+
+  // Generate random aspects
+  const mockAspects = [];
+  for (let i = 0; i < planets.length; i++) {
+    for (let j = i + 1; j < planets.length; j++) {
+      // Only create some aspects, not all possible combinations
+      if (Math.random() > 0.7) {
+        const aspectType =
+          aspectTypes[Math.floor(Math.random() * aspectTypes.length)];
+        mockAspects.push({
+          planet1: planets[i],
+          planet2: planets[j],
+          aspect: aspectType,
+          orb: Math.random() * 5,
+          exact: Math.random() > 0.8,
+        });
+      }
+    }
+  }
+
+  // Generate houses
+  const mockHouses = Array.from({ length: 12 }, (_, i) => ({
+    number: i + 1,
+    sign: signs[(i + Math.floor(Math.random() * 3)) % 12],
+    degree: Math.random() * 30,
+  }));
+
+  // Generate elemental balance
+  const mockElementalBalance = {
+    fire: Math.random() * 30,
+    earth: Math.random() * 30,
+    air: Math.random() * 30,
+    water: Math.random() * 30,
+  };
+
+  // Generate modal balance
+  const mockModalBalance = {
+    cardinal: Math.random() * 30,
+    fixed: Math.random() * 30,
+    mutable: Math.random() * 30,
+  };
+
+  return {
+    planets: mockPlanets,
+    aspects: mockAspects,
+    houses: mockHouses,
+    ascendant: {
+      sign: signs[Math.floor(Math.random() * 12)],
+      degree: Math.random() * 30,
+    },
+    midheaven: {
+      sign: signs[Math.floor(Math.random() * 12)],
+      degree: Math.random() * 30,
+    },
+    elementalBalance: mockElementalBalance,
+    modalBalance: mockModalBalance,
+  };
+};
+
+// Extended the store to include the exportReportToPDF function
+// This is added as a separate function outside the useAstrologyStore definition
+// to avoid corrupting the store state
+useAstrologyStore.setState(state => ({
+  ...state,
+  exportReportToPDF: async (reportId: string) => {
+    try {
+      // Find report in state first
+      const state = useAstrologyStore.getState();
+      let report = state.reports.find(r => r.id === reportId);
+      
+      // If not in state, try to fetch from database
+      if (!report) {
+        const { data, error } = await supabase
+          .from("astrology_reports")
+          .select("*")
+          .eq("id", reportId)
+          .single();
+          
+        if (error) throw error;
+        report = data;
+      }
+      
+      if (!report) {
+        throw new Error("Report not found");
+      }
+      
+      // Get birth chart information for the report
+      const { data: birthChart, error: birthChartError } = await supabase
+        .from("birth_charts")
+        .select("*")
+        .eq("id", report.birth_chart_id)
+        .single();
+        
+      if (birthChartError) throw birthChartError;
+      
+      // Export the report to PDF using the working utility
+      await exportReportToPdf(report, {
+        fileName: `${report.title.replace(/\s+/g, "_")}.pdf`,
+        birthChartName: birthChart.name,
+        birthDate: birthChart.birth_date,
+        birthLocation: birthChart.city && birthChart.country ? {
+          city: birthChart.city,
+          country: birthChart.country
+        } : null
+      });
+      
+      // Return a success message
+      return "success";
+    } catch (error) {
+      console.error("Error exporting report to PDF:", error);
+      throw error;
+    }
+  }
+}));
+

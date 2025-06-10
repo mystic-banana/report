@@ -1,45 +1,33 @@
 import React from "react";
 import { BirthChart } from "../../../store/astrologyStore";
-import { Star, Circle } from "lucide-react";
+import { reportTheme } from "../themes/reportTheme";
 
 interface VedicChartGridProps {
   chartData: BirthChart;
 }
 
+interface Planet {
+  name: string;
+  sign?: string;
+  [key: string]: any;
+}
+
+type PlanetName = 'Sun' | 'Moon' | 'Mercury' | 'Venus' | 'Mars' | 'Jupiter' | 'Saturn' | 'Rahu' | 'Ketu';
+
 const VedicChartGrid: React.FC<VedicChartGridProps> = ({ chartData }) => {
   const planets = chartData.chart_data?.planets || [];
 
   const vedicSigns = [
-    "Aries",
-    "Taurus",
-    "Gemini",
-    "Cancer",
-    "Leo",
-    "Virgo",
-    "Libra",
-    "Scorpio",
-    "Sagittarius",
-    "Capricorn",
-    "Aquarius",
-    "Pisces",
+    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
   ];
 
   const vedicSignsHindi = [
-    "मेष",
-    "वृष",
-    "मिथुन",
-    "कर्क",
-    "सिंह",
-    "कन्या",
-    "तुला",
-    "वृश्चिक",
-    "धनु",
-    "मकर",
-    "कुम्भ",
-    "मीन",
+    "मेष", "वृष", "मिथुन", "कर्क", "सिंह", "कन्या",
+    "तुला", "वृश्चिक", "धनु", "मकर", "कुम्भ", "मीन",
   ];
 
-  const planetSymbols = {
+  const planetSymbols: Record<PlanetName, string> = {
     Sun: "सू",
     Moon: "च",
     Mercury: "बु",
@@ -53,30 +41,26 @@ const VedicChartGrid: React.FC<VedicChartGridProps> = ({ chartData }) => {
 
   const getPlanetsInSign = (signIndex: number) => {
     const signName = vedicSigns[signIndex];
-    return planets.filter((planet) => planet.sign === signName);
+    return planets.filter((planet: Planet) => planet.sign === signName);
   };
 
   const renderNorthIndianChart = () => {
     // North Indian chart layout (diamond shape)
-    const positions = [
-      { row: 0, col: 1, house: 1 }, // Top
-      { row: 0, col: 2, house: 2 }, // Top right
-      { row: 1, col: 2, house: 3 }, // Right
-      { row: 2, col: 2, house: 4 }, // Bottom right
-      { row: 2, col: 1, house: 5 }, // Bottom
-      { row: 2, col: 0, house: 6 }, // Bottom left
-      { row: 1, col: 0, house: 7 }, // Left
-      { row: 0, col: 0, house: 8 }, // Top left
-      { row: 1, col: 1, house: 9 }, // Center top
-      { row: 1, col: 1, house: 10 }, // Center
-      { row: 1, col: 1, house: 11 }, // Center
-      { row: 1, col: 1, house: 12 }, // Center bottom
-    ];
-
+    const chartSize = reportTheme.charts.size.large;
+    const borderColor = reportTheme.colors.charts.vedic[0];
+    const accentColor = reportTheme.colors.charts.vedic[1];
+    const textColor = reportTheme.colors.primary;
+    const planetColors = reportTheme.colors.charts.vedic;
+    
     return (
-      <div className="relative w-80 h-80 mx-auto">
+      <div className="relative mx-auto chart-container" style={{ width: `${chartSize}px`, height: `${chartSize}px` }}>
         <div className="absolute inset-0 transform rotate-45">
-          <div className="w-full h-full border-4 border-orange-400 bg-gradient-to-br from-orange-900/20 to-red-900/20">
+          <div className="w-full h-full border-4 bg-gradient-to-br" 
+            style={{ 
+              borderColor: borderColor,
+              background: `linear-gradient(135deg, ${reportTheme.colors.background.base}80, ${reportTheme.colors.background.gradient}80)`
+            }}
+          >
             {/* Create the diamond grid */}
             <div className="grid grid-cols-3 grid-rows-3 h-full">
               {Array.from({ length: 12 }, (_, i) => {
@@ -86,26 +70,39 @@ const VedicChartGrid: React.FC<VedicChartGridProps> = ({ chartData }) => {
                 return (
                   <div
                     key={i}
-                    className="border border-orange-300/50 flex flex-col items-center justify-center p-1 text-center relative"
+                    className="border flex flex-col items-center justify-center p-1 text-center relative"
+                    style={{ borderColor: `${borderColor}50` }}
                   >
                     <div className="transform -rotate-45">
-                      <div className="text-xs text-orange-300 font-semibold mb-1">
+                      <div className="text-sm font-semibold mb-1" style={{ color: accentColor }}>
                         {i + 1}
                       </div>
-                      <div className="text-xs text-orange-200">
+                      <div className="text-sm" style={{ color: textColor }}>
                         {vedicSignsHindi[signIndex]}
                       </div>
-                      <div className="flex flex-wrap justify-center mt-1">
-                        {planetsInSign.map((planet, pIndex) => (
-                          <span
-                            key={pIndex}
-                            className="text-xs text-yellow-300 bg-orange-800/50 rounded px-1 m-0.5"
-                            title={planet.name}
-                          >
-                            {planetSymbols[planet.name] ||
-                              planet.name.charAt(0)}
-                          </span>
-                        ))}
+                      <div className="flex flex-wrap justify-center mt-2">
+                        {planetsInSign.map((planet: Planet, pIndex: number) => {
+                          // Get planet color from theme
+                          const planetName = planet.name as PlanetName;
+                          const planetSymbol = planetName && planetSymbols[planetName] ? 
+                            planetSymbols[planetName] : planet.name.charAt(0);
+                          const planetColor = planetColors[pIndex % planetColors.length];
+                          
+                          return (
+                            <span
+                              key={pIndex}
+                              className="text-sm rounded px-1.5 py-0.5 m-0.5 font-bold"
+                              style={{ 
+                                color: planetColor, 
+                                backgroundColor: "rgba(18, 18, 18, 0.7)", 
+                                border: `1px solid ${planetColor}`
+                              }}
+                              title={planet.name}
+                            >
+                              {planetSymbol}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -117,8 +114,16 @@ const VedicChartGrid: React.FC<VedicChartGridProps> = ({ chartData }) => {
 
         {/* Center label */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="bg-orange-800/80 rounded-full w-16 h-16 flex items-center justify-center">
-            <span className="text-orange-200 font-bold text-sm">जन्म</span>
+          <div className="rounded-full w-20 h-20 flex items-center justify-center" 
+            style={{ 
+              backgroundColor: typeof reportTheme.colors.background.gradient === 'string' 
+                ? 'rgba(24, 24, 24, 0.8)'  // Fallback if gradient is a string
+                : reportTheme.colors.background.base,
+              border: `2px solid ${accentColor}`,
+              boxShadow: `0 0 10px rgba(0, 0, 0, 0.5)`
+            }}
+          >
+            <span className="font-bold text-lg" style={{ color: textColor }}>जन्म</span>
           </div>
         </div>
       </div>
@@ -127,29 +132,32 @@ const VedicChartGrid: React.FC<VedicChartGridProps> = ({ chartData }) => {
 
   const renderSouthIndianChart = () => {
     // South Indian chart layout (square with fixed houses)
+    const chartSize = reportTheme.charts.size.large;
+    const borderColor = reportTheme.colors.charts.vedic[0];
+    const accentColor = reportTheme.colors.charts.vedic[1];
+    const textColor = reportTheme.colors.primary;
+    const planetColors = reportTheme.colors.charts.vedic;
+    
+    // Map grid positions to houses (South Indian style)
+    const houseMapping: Record<number, number> = {
+      0: 1, 1: 2, 2: 3, 3: 4,
+      15: 12, 14: 11, 13: 10, 12: 9,
+      4: 5, 7: 6, 8: 7, 11: 8,
+    };
+    
     return (
-      <div className="w-80 h-80 mx-auto">
-        <div className="grid grid-cols-4 grid-rows-4 h-full border-4 border-orange-400 bg-gradient-to-br from-orange-900/20 to-red-900/20">
+      <div className="mx-auto chart-container" style={{ width: `${chartSize}px`, height: `${chartSize}px` }}>
+        <div className="grid grid-cols-4 grid-rows-4 h-full border-4" 
+          style={{ 
+            borderColor: borderColor,
+            background: `linear-gradient(135deg, ${reportTheme.colors.background.base}80, ${typeof reportTheme.colors.background.gradient === 'string' ? reportTheme.colors.background.base : reportTheme.colors.background.base}80)`
+          }}
+        >
           {Array.from({ length: 16 }, (_, i) => {
-            // Map grid positions to houses (South Indian style)
-            const houseMapping = {
-              0: 1,
-              1: 2,
-              2: 3,
-              3: 4,
-              15: 12,
-              14: 11,
-              13: 10,
-              12: 9,
-              4: 5,
-              7: 6,
-              8: 7,
-              11: 8,
-            };
-
-            const house = houseMapping[i];
+            // In TypeScript, we need to ensure type safety when accessing the houseMapping
+            const house = i in houseMapping ? houseMapping[i] : undefined;
             if (!house) {
-              return <div key={i} className="border border-orange-300/30" />;
+              return <div key={i} className="border" style={{ borderColor: `${borderColor}30` }} />;
             }
 
             const signIndex = house - 1;
@@ -158,24 +166,38 @@ const VedicChartGrid: React.FC<VedicChartGridProps> = ({ chartData }) => {
             return (
               <div
                 key={i}
-                className="border border-orange-300/50 flex flex-col items-center justify-center p-1 text-center"
+                className="border flex flex-col items-center justify-center p-1 text-center" 
+                style={{ borderColor: `${borderColor}50` }}
               >
-                <div className="text-xs text-orange-300 font-semibold mb-1">
+                <div className="text-sm font-semibold mb-1" style={{ color: accentColor }}>
                   {house}
                 </div>
-                <div className="text-xs text-orange-200">
+                <div className="text-sm" style={{ color: textColor }}>
                   {vedicSignsHindi[signIndex]}
                 </div>
-                <div className="flex flex-wrap justify-center mt-1">
-                  {planetsInSign.map((planet, pIndex) => (
-                    <span
-                      key={pIndex}
-                      className="text-xs text-yellow-300 bg-orange-800/50 rounded px-1 m-0.5"
-                      title={planet.name}
-                    >
-                      {planetSymbols[planet.name] || planet.name.charAt(0)}
-                    </span>
-                  ))}
+                <div className="flex flex-wrap justify-center mt-2">
+                  {planetsInSign.map((planet: Planet, pIndex: number) => {
+                    // Get planet color from theme
+                    const planetName = planet.name as PlanetName;
+                    const planetSymbol = planetName && planetSymbols[planetName] ? 
+                      planetSymbols[planetName] : planet.name.charAt(0);
+                    const planetColor = planetColors[pIndex % planetColors.length];
+                    
+                    return (
+                      <span
+                        key={pIndex}
+                        className="text-sm rounded px-1.5 py-0.5 m-0.5 font-bold"
+                        style={{ 
+                          color: planetColor, 
+                          backgroundColor: "rgba(18, 18, 18, 0.7)", 
+                          border: `1px solid ${planetColor}`
+                        }}
+                        title={planet.name}
+                      >
+                        {planetSymbol}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -186,69 +208,55 @@ const VedicChartGrid: React.FC<VedicChartGridProps> = ({ chartData }) => {
   };
 
   return (
-    <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
-      <h2 className="text-2xl font-bold text-white mb-8 text-center flex items-center justify-center">
-        <Star className="w-6 h-6 mr-3 text-orange-400" />
-        जन्म कुंडली (Janma Kundali)
-      </h2>
-
-      <div className="space-y-8">
-        {/* North Indian Style Chart */}
+    <div className="report-card">
+      <h2 className="report-section-title text-center">Vedic Chart</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 my-6">
         <div>
-          <h3 className="text-lg font-semibold text-orange-300 mb-4 text-center">
-            उत्तर भारतीय शैली (North Indian Style)
+          <h3
+            className="text-lg mb-4 text-center"
+            style={{ color: reportTheme.colors.primary }}
+          >
+            North Indian Style
           </h3>
           {renderNorthIndianChart()}
         </div>
-
-        {/* South Indian Style Chart */}
         <div>
-          <h3 className="text-lg font-semibold text-orange-300 mb-4 text-center">
-            दक्षिण भारतीय शैली (South Indian Style)
+          <h3
+            className="text-lg mb-4 text-center"
+            style={{ color: reportTheme.colors.primary }}
+          >
+            South Indian Style
           </h3>
           {renderSouthIndianChart()}
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="mt-8 grid grid-cols-2 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-xl p-4 border border-orange-400/20">
-          <h4 className="text-orange-300 font-medium mb-2">
-            ग्रह संकेत (Planet Symbols)
+      {/* Legend section */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
+        <div className="rounded-lg p-4" style={{ 
+          background: `linear-gradient(135deg, rgba(255,183,77,0.1) 0%, rgba(255,138,101,0.1) 100%)`,
+          border: '1px solid rgba(255,183,77,0.2)'
+        }}>
+          <h4 className="text-sm font-medium mb-2" style={{ color: reportTheme.colors.primary }}>
+            Planet Symbols
           </h4>
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            {Object.entries(planetSymbols).map(([planet, symbol]) => (
-              <div key={planet} className="text-orange-200">
-                <span className="font-bold">{symbol}</span> = {planet}
+          <div className="grid grid-cols-3 gap-1">
+            {Object.entries(planetSymbols).slice(0, 6).map(([name, symbol]) => (
+              <div key={name} className="text-xs" style={{ color: reportTheme.colors.text.secondary }}>
+                <span className="font-bold mr-1" style={{ color: reportTheme.colors.primary }}>{symbol}</span>
+                {name}
               </div>
             ))}
           </div>
         </div>
-
-        <div className="bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-xl p-4 border border-orange-400/20">
-          <h4 className="text-orange-300 font-medium mb-2">
-            राशि चक्र (Zodiac Wheel)
-          </h4>
-          <p className="text-orange-200 text-xs">
-            The chart shows planetary positions in the 12 houses (भाव) and signs
-            (राशि) at the time of birth.
-          </p>
-        </div>
-
-        <div className="bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-xl p-4 border border-orange-400/20">
-          <h4 className="text-orange-300 font-medium mb-2">
-            वैदिक ज्योतिष (Vedic Astrology)
-          </h4>
-          <p className="text-orange-200 text-xs">
-            Based on the sidereal zodiac system, accounting for the precession
-            of equinoxes for accurate calculations.
-          </p>
-        </div>
       </div>
 
       <div className="mt-6 text-center">
-        <p className="text-orange-200 text-sm italic">
-          "ज्योतिषं चक्षुर्वेदानाम्" - Astrology is the eye of the Vedas
+        <p
+          className="text-sm italic"
+          style={{ color: reportTheme.colors.text.secondary }}
+        >
+          Vedic chart showing planetary positions in Rashi (signs)
         </p>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { User, UserPreferences } from "../types";
+import type { User } from "../types";
 import { supabase } from "../lib/supabaseClient";
 import { Session, User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -15,9 +15,12 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  
+  // Internal helper functions
+  createDefaultProfile: (userId: string) => Partial<User>;
 
   // Profile management
-  fetchUserProfile: (userId: string) => Promise<Partial<User> | null>;
+  fetchUserProfile: (userId: string, authUser?: SupabaseUser | null) => Promise<Partial<User> | null>;
   updateUserProfile: (updates: Partial<User>) => Promise<void>;
 
   // Permission helpers
@@ -77,17 +80,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          name: updates.name,
-          avatar_url: updates.avatarUrl,
-          preferences: updates.preferences,
-          saved_content: updates.savedContent,
-        })
-        .eq("id", user.id);
+      const profileUpdates: { [key: string]: any } = {};
+      if (updates.name) profileUpdates.full_name = updates.name;
+      if (updates.avatarUrl) profileUpdates.avatar_url = updates.avatarUrl;
 
-      if (error) throw error;
+      if (Object.keys(profileUpdates).length > 0) {
+        const { error } = await supabase
+          .from("user_profiles")
+          .update(profileUpdates)
+          .eq("id", user.id);
+
+        if (error) throw error;
+      }
 
       set({
         user: { ...user, ...updates },
@@ -103,19 +107,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { user } = get();
     if (!user) return false;
 
-    // Admin has all permissions
     if (user.isAdmin) return true;
 
-    // Define permission rules
     const permissions: { [key: string]: boolean } = {
-      "create:birth_chart": true, // All authenticated users
-      "create:basic_report": true, // All authenticated users
-      "create:premium_report": user.isPremium, // Premium users only
-      "create:vedic_report": user.isPremium, // Premium users only
-      "create:compatibility_report": true, // All authenticated users
-      "export:pdf": user.isPremium, // Premium users only
-      "access:advanced_features": user.isPremium, // Premium users only
-      "manage:admin": user.isAdmin, // Admin only
+      "create:birth_chart": true,
+      "create:basic_report": true,
+      "create:premium_report": !!user.isPremium,
+      "create:vedic_report": !!user.isPremium,
+      "create:compatibility_report": true,
+      "export:pdf": !!user.isPremium,
+      "access:advanced_features": !!user.isPremium,
+      "manage:admin": !!user.isAdmin,
     };
 
     return permissions[action] || false;
@@ -135,149 +137,184 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ error: null });
   },
 
-  fetchUserProfile: async (userId: string): Promise<Partial<User> | null> => {
-    console.log("[AuthStore] fetchUserProfile called for userId:", userId);
+  fetchUserProfile: async (userId, authUserFromParam?: SupabaseUser | null) => {
+    console.log(`[AuthStore] Fetching user profile for user ID: ${userId}`);
+    if (!userId) {
+      console.error('[AuthStore] Invalid user ID provided to fetchUserProfile');
+      // Return default profile instead of throwing
+      return get().createDefaultProfile('unknown');
+    }
 
     try {
-      // Set a timeout to prevent hanging indefinitely
-      const timeoutPromise = new Promise<{ data: null; error: Error }>(
-        (_, reject) => {
-          setTimeout(() => {
-            reject(new Error("Profile fetch timed out after 5 seconds"));
-          }, 5000);
-        },
-      );
-
-      // The actual fetch request
-      const fetchPromise = supabase
-        .from("profiles")
-        .select(
-          "name, avatar_url, is_premium, preferences, saved_content, is_admin",
-        )
+      // First try to find an existing profile
+      console.log(`[AuthStore] Querying user_profiles table for ID: ${userId}`);
+      let { data: profileData, error } = await supabase
+        .from("user_profiles")
+        .select('*') // Get all fields
         .eq("id", userId)
         .single();
 
-      // Race between the timeout and the actual fetch
-      const { data, error } = await Promise.race([
-        fetchPromise,
-        timeoutPromise,
-      ]);
-
-      console.log("[AuthStore] fetchUserProfile result:", { data, error });
-
+      // Handle case where profile doesn't exist yet
       if (error) {
-        console.error("[AuthStore] Error fetching user profile:", error);
-        // Return a default profile with minimal data to prevent login failures
-        return {
-          name: "User",
-          avatarUrl: undefined, // Changed from null to undefined to match type
-          isPremium: false,
-          isAdmin: false, // Default to non-admin for safety
-          preferences: {
-            interests: [],
-            notificationSettings: {
-              dailyHoroscope: true,
-              dailyTarot: true,
-              newContent: true,
-              premiumOffers: true,
-            },
-          },
-          savedContent: [],
-        };
+        console.log(`[AuthStore] Error or no profile for user ${userId}: ${error.message}`);
+        
+        // For any error, try to create a profile, but don't let errors block login
+        try {
+          console.log('[AuthStore] Attempting to create new profile');
+          // Use authUserFromParam if provided, otherwise fetch it
+          const supabaseAuthUser = authUserFromParam || (await supabase.auth.getUser())?.data?.user;
+
+          if (supabaseAuthUser) {
+            const { data: newProfile } = await supabase
+              .from('user_profiles')
+              .upsert({
+                id: userId,
+                username: supabaseAuthUser.email?.split('@')[0] || `user_${Date.now()}`,
+                full_name: supabaseAuthUser.user_metadata?.full_name || 'Mystic User',
+                avatar_url: supabaseAuthUser.user_metadata?.avatar_url || null,
+                created_at: new Date().toISOString(),
+              })
+              .select('*')
+              .single();
+            
+            console.log('[AuthStore] Profile creation attempt completed');
+            if (newProfile) {
+              profileData = newProfile;
+              console.log('[AuthStore] Successfully created new profile');
+            } else {
+              // If we couldn't create, still return a default profile
+              console.log('[AuthStore] Returning default profile');
+              return get().createDefaultProfile(userId);
+            }
+          } else {
+            // No auth user available, return default profile
+            return get().createDefaultProfile(userId);
+          }
+        } catch (createError) {
+          console.error('[AuthStore] Error creating profile:', createError);
+          // Don't throw - return default profile instead
+          return get().createDefaultProfile(userId);
+        }
       }
 
-      if (data) {
-        console.log("[AuthStore] Profile data fetched:", data);
-        return {
-          name: data.name,
-          avatarUrl: data.avatar_url,
-          isPremium: data.is_premium,
-          isAdmin: data.is_admin,
-          preferences: data.preferences as UserPreferences,
-          savedContent: data.saved_content || [],
-        };
+      // If we made it here and still no profile data, return default
+      if (!profileData) {
+        console.warn('[AuthStore] No profile data, returning default');
+        return get().createDefaultProfile(userId);
       }
 
-      console.log("[AuthStore] No profile data found for userId:", userId);
-      // Return a default profile with minimal data
+      console.log('[AuthStore] Successfully retrieved/created user profile');
+      // Map DB fields to our User type
       return {
-        name: "User",
-        avatarUrl: undefined, // Changed from null to undefined to match type
-        isPremium: false,
-        isAdmin: false,
-        preferences: {
-          interests: [],
-          notificationSettings: {
-            dailyHoroscope: true,
-            dailyTarot: true,
-            newContent: true,
-            premiumOffers: true,
-          },
+        id: profileData.id,
+        name: profileData.full_name || 'Mystic User',
+        avatarUrl: profileData.avatar_url,
+        isPremium: profileData.is_premium === true,
+        isAdmin: profileData.is_admin === true, 
+        preferences: profileData.preferences || { 
+          interests: [], 
+          notificationSettings: { 
+            dailyHoroscope: true, 
+            dailyTarot: true, 
+            newContent: true, 
+            premiumOffers: true 
+          } 
         },
-        savedContent: [],
+        savedContent: profileData.saved_content || [],
       };
-    } catch (error) {
-      console.error("[AuthStore] Exception in fetchUserProfile:", error);
-      // Return a default profile with minimal data to prevent login failures
-      return {
-        name: "User",
-        avatarUrl: undefined, // Changed from null to undefined to match type
-        isPremium: false,
-        isAdmin: false,
-        preferences: {
-          interests: [],
-          notificationSettings: {
-            dailyHoroscope: true,
-            dailyTarot: true,
-            newContent: true,
-            premiumOffers: true,
-          },
-        },
-        savedContent: [],
-      };
+    } catch (err) {
+      console.error(`[AuthStore] Error in fetchUserProfile for user ${userId}:`, err);
+      // Don't throw - return default profile instead
+      return get().createDefaultProfile(userId);
     }
   },
+  
+  // Helper function to create default user profile
+  createDefaultProfile: (userId: string): Partial<User> => {
+    return {
+      id: userId,
+      name: 'Mystic User',
+      avatarUrl: undefined,
+      isPremium: false,
+      isAdmin: false,
+      preferences: { 
+        interests: [], 
+        notificationSettings: { 
+          dailyHoroscope: true, 
+          dailyTarot: true, 
+          newContent: true, 
+          premiumOffers: true 
+        } 
+      },
+      savedContent: [],
+    };
+  },
 
-  login: async (email, password) => {
-    console.log("[AuthStore] login attempt for email:", email);
+  login: async (email, password): Promise<void> => {
+    console.log('[AuthStore] Starting login process');
     set({ isLoading: true, error: null });
+    
     try {
-      const { data, error: signInError } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-      console.log("[AuthStore] signInWithPassword result:", {
-        data,
-        signInError,
-      });
-
-      if (signInError) throw signInError;
-
-      if (data.user && data.session) {
-        console.log(
-          "[AuthStore] Login successful, fetching profile for user:",
-          data.user.id,
-        );
-        const profile = await get().fetchUserProfile(data.user.id);
-        console.log("[AuthStore] Profile fetched in login:", profile);
-        const appUser = mapSupabaseUserToAppUser(data.user, profile);
-        set({
-          user: appUser,
-          session: data.session,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null,
-        });
-        console.log("[AuthStore] Login state updated, user authenticated.");
-      } else {
-        console.error(
-          "[AuthStore] Login: No user data/session received after signInWithPassword.",
-        );
-        throw new Error("Login successful but no user data received.");
+      console.log('[AuthStore] Validating inputs');
+      // Basic validation
+      if (!email?.trim() || !password?.trim()) {
+        throw new Error('Email and password are required');
       }
+      
+      // Direct Supabase authentication - simplified approach
+      console.log('[AuthStore] Making Supabase auth call');
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      // Handle authentication errors
+      if (signInError) {
+        console.error('[AuthStore] Sign-in error:', signInError);
+        throw signInError;
+      }
+      
+      // Validate response
+      if (!data?.user || !data?.session) {
+        console.error('[AuthStore] Auth response missing user or session data');
+        throw new Error('Authentication failed - missing user data');
+      }
+      
+      console.log('[AuthStore] Authentication successful, user ID:', data.user.id);
+      
+      // Try to get user profile but don't let it block authentication
+      let profile = null;
+      try {
+        console.log('[AuthStore] Fetching user profile');
+        profile = await get().fetchUserProfile(data.user.id);
+      } catch (profileError) {
+        // Log but continue - we'll use default profile
+        console.warn('[AuthStore] Profile fetch failed, using defaults:', profileError);
+      }
+      
+      // Map user data
+      const appUser = mapSupabaseUserToAppUser(data.user, profile);
+      
+      // Update state once with all user information
+      console.log('[AuthStore] Setting authenticated state with user:', {
+        id: appUser.id,
+        hasProfile: !!profile,
+        isAdmin: appUser.isAdmin
+      });
+      
+      set({
+        user: appUser,
+        session: data.session,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      });
+      
+      console.log('[AuthStore] Login completed successfully');
+      // No return value needed
+      
     } catch (error: any) {
-      console.error("[AuthStore] Login error caught:", error);
+      console.error('[AuthStore] Login process failed:', error);
       set({
         error: error.message || "Invalid email or password",
         isLoading: false,
@@ -285,11 +322,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         session: null,
         isAuthenticated: false,
       });
+      // No return value needed
     }
   },
 
   register: async (name, email, password) => {
-    console.log("[AuthStore] register attempt for email:", email);
     set({ isLoading: true, error: null });
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
@@ -302,17 +339,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           emailRedirectTo: window.location.origin,
         },
       });
-      console.log("[AuthStore] signUp result:", { data, signUpError });
 
       if (signUpError) throw signUpError;
 
       if (data.user && data.session) {
-        console.log(
-          "[AuthStore] Registration successful, fetching profile for user:",
-          data.user.id,
-        );
         const profile = await get().fetchUserProfile(data.user.id);
-        console.log("[AuthStore] Profile fetched in registration:", profile);
         const appUser = mapSupabaseUserToAppUser(data.user, profile);
         set({
           user: appUser,
@@ -321,25 +352,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isLoading: false,
           error: null,
         });
-        console.log(
-          "[AuthStore] Registration state updated, user authenticated.",
-        );
       } else if (data.user && !data.session) {
-        console.log(
-          "[AuthStore] Registration successful, but no session received.",
-        );
         set({ isLoading: false, error: null });
         alert(
           "Registration successful! Please check your email to confirm your account.",
         );
       } else {
-        console.error(
-          "[AuthStore] Registration: No user data/session received after signUp.",
-        );
         throw new Error("Registration successful but no user data received.");
       }
     } catch (error: any) {
-      console.error("[AuthStore] Registration error caught:", error);
       set({
         error: error.message || "Registration failed. Please try again.",
         isLoading: false,
@@ -351,14 +372,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    console.log("[AuthStore] logout attempt");
     set({ isLoading: true });
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error("[AuthStore] Logout error:", error);
       set({ error: error.message, isLoading: false });
     } else {
-      console.log("[AuthStore] Logout successful");
       set({
         user: null,
         session: null,
@@ -371,167 +389,94 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initializeAuth: () => {
-    console.log("[AuthStore] initializeAuth called");
+    console.log('[AuthStore] Initializing authentication state');
+    set({ isLoading: true });
 
-    // Don't set loading to true initially to prevent redirect issues
-    set({ isLoading: false });
-
-    // Set a shorter timeout to prevent hanging during initialization
-    const initTimeout = setTimeout(() => {
-      console.log("[AuthStore] initializeAuth timeout reached");
-      set({ isLoading: false });
-    }, 2000);
-
-    supabase.auth
-      .getSession()
-      .then(async ({ data: { session } }) => {
-        console.log("[AuthStore] initializeAuth getSession result:", session);
-
-        try {
-          if (session && session.user) {
-            // Don't set loading to true to prevent redirect issues
-            const wasAuthenticatedBefore = get().isAuthenticated;
-            console.log(
-              "[AuthStore] initializeAuth: session exists, wasAuthenticatedBefore:",
-              wasAuthenticatedBefore,
-              "email_confirmed_at:",
-              session.user.email_confirmed_at,
-            );
-
-            // Set a shorter timeout for profile fetching
-            const profilePromise = get().fetchUserProfile(session.user.id);
-            const timeoutPromise = new Promise<null>((_, reject) => {
-              setTimeout(() => {
-                reject(new Error("Profile fetch timed out"));
-              }, 2000);
-            });
-
-            // Race between profile fetch and timeout
-            const profile = await Promise.race([
-              profilePromise,
-              timeoutPromise,
-            ]).catch((err) => {
-              console.error("[AuthStore] Error fetching profile:", err);
-              return null;
-            });
-
-            console.log(
-              "[AuthStore] initializeAuth: profile fetched:",
-              profile,
-            );
-            const appUser = mapSupabaseUserToAppUser(session.user, profile);
-
-            // Only set redirect flag for actual email confirmations
-            const isEmailConfirmation =
-              !wasAuthenticatedBefore &&
-              session.user.email_confirmed_at &&
-              session.user.confirmed_at;
-
-            set({
-              session,
-              user: appUser,
-              isAuthenticated: true,
-              isLoading: false,
-              justConfirmedEmailAndSignedIn: isEmailConfirmation,
-            });
-          } else {
-            console.log("[AuthStore] initializeAuth: no session found.");
-            set({
-              isLoading: false,
-              isAuthenticated: false,
-              user: null,
-              session: null,
-            });
-          }
-        } catch (err) {
-          console.error("[AuthStore] Error in initializeAuth:", err);
-          set({ isLoading: false });
-        } finally {
-          clearTimeout(initTimeout);
+    // First, check if we already have a session
+    (async () => {
+      try {
+        console.log('[AuthStore] Checking for existing session');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('[AuthStore] Error getting session:', sessionError);
+          set({ isLoading: false, error: sessionError.message });
+          return;
         }
-      })
-      .catch((err) => {
-        console.error("[AuthStore] Error getting session:", err);
-        set({ isLoading: false });
-        clearTimeout(initTimeout);
-      });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log(
-          "[AuthStore] onAuthStateChange event:",
-          event,
-          "session:",
-          session ? "exists" : "null",
-        );
-        const currentState = get();
-        const wasAuthenticatedBefore = currentState.isAuthenticated;
-        console.log(
-          "[AuthStore] onAuthStateChange: wasAuthenticatedBefore:",
-          wasAuthenticatedBefore,
-        );
-
-        // Set a timeout to prevent hanging during auth state changes
-        const stateChangeTimeout = setTimeout(() => {
-          console.log(
-            "[AuthStore] onAuthStateChange timeout reached for event:",
-            event,
-          );
-          set({ isLoading: false });
-        }, 5000);
-
-        try {
-          if (event === "SIGNED_IN" && session && session.user) {
-            set({ isLoading: true, error: null }); // Indicate loading has started
-            console.log(
-              "[AuthStore] onAuthStateChange: SIGNED_IN event, email_confirmed_at:",
-              session.user.email_confirmed_at,
-            );
-
-            // Set a timeout for profile fetching
-            const profilePromise = get().fetchUserProfile(session.user.id);
-            const timeoutPromise = new Promise<null>((_, reject) => {
-              setTimeout(() => {
-                reject(
-                  new Error("Profile fetch timed out during auth state change"),
-                );
-              }, 3000);
-            });
-
-            // Race between profile fetch and timeout
-            const profile = await Promise.race([
-              profilePromise,
-              timeoutPromise,
-            ]).catch((err) => {
-              console.error(
-                "[AuthStore] Error fetching profile during auth state change:",
-                err,
-              );
-              return null;
-            });
-
-            console.log(
-              "[AuthStore] onAuthStateChange SIGNED_IN: profile fetched:",
-              profile ? "exists" : "null",
-            );
+        if (session && session.user) {
+          console.log('[AuthStore] Existing session found, fetching user profile');
+          try {
+            // We found an existing session, so fetch the user profile, passing the Supabase user object
+            const profile = await get().fetchUserProfile(session.user.id, session.user);
             const appUser = mapSupabaseUserToAppUser(session.user, profile);
-            const isInitialSignInAfterConfirmation =
-              !wasAuthenticatedBefore && !!session.user.email_confirmed_at;
-            console.log(
-              "[AuthStore] onAuthStateChange SIGNED_IN: isInitialSignInAfterConfirmation flag:",
-              isInitialSignInAfterConfirmation,
-            );
-
+            
+            console.log('[AuthStore] Successfully restored authenticated state');
             set({
               session,
               user: appUser,
               isAuthenticated: true,
               isLoading: false,
               error: null,
-              justConfirmedEmailAndSignedIn: isInitialSignInAfterConfirmation,
             });
+          } catch (profileError) {
+            console.error('[AuthStore] Error fetching profile during init:', profileError);
+            set({ isLoading: false, error: 'Failed to restore your session' });
+          }
+        } else {
+          console.log('[AuthStore] No existing session found');
+          set({ isLoading: false });
+        }
+      } catch (err) {
+        console.error('[AuthStore] Error during auth initialization:', err);
+        set({ isLoading: false, error: 'Authentication initialization failed' });
+      }
+    })();
+
+    // Set up listener for auth state changes
+    console.log('[AuthStore] Setting up auth state change listener');
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log(`[AuthStore] Auth state change: ${event}`, {
+          hasSession: !!session,
+          hasUser: !!session?.user,
+        });
+        
+        const currentState = get();
+        const wasAuthenticatedBefore = currentState.isAuthenticated;
+
+        try {
+          if (event === "SIGNED_IN" && session && session.user) {
+            console.log('[AuthStore] Processing SIGNED_IN event');
+            set({ isLoading: true, error: null });
+            try {
+              // Pass session.user to fetchUserProfile
+              const profile = await get().fetchUserProfile(session.user.id, session.user);
+              const appUser = mapSupabaseUserToAppUser(session.user, profile);
+              const isInitialSignInAfterConfirmation =
+                !wasAuthenticatedBefore && !!session.user.email_confirmed_at;
+
+              set({
+                session,
+                user: appUser,
+                isAuthenticated: true,
+                isLoading: false,
+                error: null,
+                justConfirmedEmailAndSignedIn: isInitialSignInAfterConfirmation,
+              });
+              console.log('[AuthStore] SIGNED_IN event processed successfully');
+            } catch (profileError) {
+              console.error('[AuthStore] Error during SIGNED_IN profile fetch:', profileError);
+              set({ 
+                isLoading: false, 
+                error: 'Failed to complete sign-in process',
+                isAuthenticated: false,
+                user: null,
+                session: null,
+              });
+            }
           } else if (event === "SIGNED_OUT") {
-            console.log("[AuthStore] onAuthStateChange: SIGNED_OUT event");
+            console.log('[AuthStore] Processing SIGNED_OUT event');
             set({
               session: null,
               user: null,
@@ -541,52 +486,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               justConfirmedEmailAndSignedIn: false,
             });
           } else if (event === "USER_UPDATED" && session && session.user) {
-            set({ isLoading: true, error: null }); // Indicate loading has started
-            console.log(
-              "[AuthStore] onAuthStateChange: USER_UPDATED event, email_confirmed_at:",
-              session.user.email_confirmed_at,
-            );
-
-            // Set a timeout for profile fetching
-            const profilePromise = get().fetchUserProfile(session.user.id);
-            const timeoutPromise = new Promise<null>((_, reject) => {
-              setTimeout(() => {
-                reject(new Error("Profile fetch timed out during user update"));
-              }, 3000);
-            });
-
-            // Race between profile fetch and timeout
-            const profile = await Promise.race([
-              profilePromise,
-              timeoutPromise,
-            ]).catch((err) => {
-              console.error(
-                "[AuthStore] Error fetching profile during user update:",
-                err,
-              );
-              return null;
-            });
-
-            console.log(
-              "[AuthStore] onAuthStateChange USER_UPDATED: profile fetched:",
-              profile ? "exists" : "null",
-            );
-            const appUser = mapSupabaseUserToAppUser(session.user, profile);
-            set({
-              session,
-              user: appUser,
-              isAuthenticated: true,
-              isLoading: false,
-              error: null,
-            });
+            console.log('[AuthStore] Processing USER_UPDATED event');
+            set({ isLoading: true, error: null });
+            try {
+              // Pass session.user to fetchUserProfile
+              const profile = await get().fetchUserProfile(session.user.id, session.user);
+              const appUser = mapSupabaseUserToAppUser(session.user, profile);
+              set({
+                session,
+                user: appUser,
+                isAuthenticated: true,
+                isLoading: false,
+                error: null,
+              });
+              console.log('[AuthStore] USER_UPDATED event processed successfully');
+            } catch (profileError) {
+              console.error('[AuthStore] Error during USER_UPDATED profile fetch:', profileError);
+              // Don't clear the auth state on update errors, just log it
+              set({ isLoading: false });
+            }
           } else if (event === "PASSWORD_RECOVERY") {
-            console.log(
-              "[AuthStore] onAuthStateChange: PASSWORD_RECOVERY event",
-            );
+            console.log('[AuthStore] Processing PASSWORD_RECOVERY event');
             set({ isLoading: false });
           } else if (event === "TOKEN_REFRESHED") {
-            console.log("[AuthStore] onAuthStateChange: TOKEN_REFRESHED event");
-            // Only update the session, preserve other state
+            console.log('[AuthStore] Processing TOKEN_REFRESHED event');
             if (currentState.isAuthenticated && currentState.user) {
               set({ session, isLoading: false });
             }
@@ -594,12 +517,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } catch (err) {
           console.error("[AuthStore] Error in onAuthStateChange handler:", err);
           set({ isLoading: false });
-        } finally {
-          clearTimeout(stateChangeTimeout);
         }
       },
     );
+
     return () => {
+      console.log('[AuthStore] Cleaning up auth state change listener');
       authListener?.subscription.unsubscribe();
     };
   },

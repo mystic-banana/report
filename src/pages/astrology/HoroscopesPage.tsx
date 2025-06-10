@@ -5,6 +5,7 @@ import { Sun, ArrowLeft, Calendar, Star, Sparkles } from "lucide-react";
 import PageLayout from "../../components/layout/PageLayout";
 import { useAstrologyStore } from "../../store/astrologyStore";
 import { useAuthStore } from "../../store/authStore";
+import { supabase } from "../../lib/supabaseClient";
 import Button from "../../components/ui/Button";
 import LoadingSpinner from "../../components/ui/LoadingSpinner";
 import { getZodiacSign } from "../../utils/astronomicalCalculations";
@@ -76,7 +77,9 @@ const HoroscopesPage: React.FC = () => {
     }
 
     // Generate today's horoscopes if not available
-    generateDailyHoroscopes(selectedDate);
+    if (selectedDate && generateDailyHoroscopes) {
+      generateDailyHoroscopes(selectedDate);
+    }
   }, [isAuthenticated, user, birthCharts.length]);
 
   useEffect(() => {
@@ -84,10 +87,62 @@ const HoroscopesPage: React.FC = () => {
       if (isPersonalized && birthCharts.length > 0) {
         generatePersonalizedHoroscope();
       } else {
-        fetchDailyHoroscope(selectedSign, selectedDate).then(setTodayHoroscope);
+        loadCachedHoroscope();
       }
     }
   }, [selectedSign, selectedDate, isPersonalized]);
+
+  const loadCachedHoroscope = async () => {
+    try {
+      // First try to get from cache
+      const { data: cached, error } = await supabase
+        .from("daily_horoscopes")
+        .select("*")
+        .eq("zodiac_sign", selectedSign)
+        .eq("date", selectedDate)
+        .single();
+
+      if (!error && cached && new Date(cached.expires_at) > new Date()) {
+        // Use cached horoscope
+        setTodayHoroscope({
+          content: cached.content,
+          love_score: cached.love_score,
+          career_score: cached.career_score,
+          health_score: cached.health_score,
+          lucky_numbers: cached.lucky_numbers,
+          lucky_colors: cached.lucky_colors,
+        });
+        return;
+      }
+
+      // Fallback to API generation
+      const horoscope = await fetchDailyHoroscope(selectedSign, selectedDate);
+      setTodayHoroscope(horoscope);
+
+      // Cache the result
+      if (horoscope) {
+        await supabase.from("daily_horoscopes").upsert({
+          zodiac_sign: selectedSign,
+          date: selectedDate,
+          content: horoscope.content,
+          love_score:
+            horoscope.love_score || Math.floor(Math.random() * 30) + 70,
+          career_score:
+            horoscope.career_score || Math.floor(Math.random() * 30) + 70,
+          health_score:
+            horoscope.health_score || Math.floor(Math.random() * 30) + 70,
+          lucky_numbers: horoscope.lucky_numbers || [7, 14, 21],
+          lucky_colors: horoscope.lucky_colors || ["Purple", "Gold"],
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        });
+      }
+    } catch (error) {
+      console.error("Error loading horoscope:", error);
+      // Fallback to API
+      const horoscope = await fetchDailyHoroscope(selectedSign, selectedDate);
+      setTodayHoroscope(horoscope);
+    }
+  };
 
   const generatePersonalizedHoroscope = async () => {
     if (!selectedSign || !birthCharts.length) return;

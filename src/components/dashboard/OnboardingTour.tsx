@@ -123,12 +123,12 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
 
   const handleComplete = () => {
     onComplete();
-    onClose();
+    onComplete(); onClose();
     setCurrentStep(0);
   };
 
   const handleSkip = () => {
-    onClose();
+    onComplete(); onClose();
     setCurrentStep(0);
   };
 
@@ -155,9 +155,9 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({
             initial={{ opacity: 0, scale: 0.8, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50"
+            className="fixed z-50 inset-0 flex items-center justify-center p-4"
           >
-            <div className="bg-gradient-to-br from-dark-800 to-dark-900 rounded-2xl p-8 border border-purple-500/30 shadow-2xl max-w-md mx-4">
+            <div className="bg-gradient-to-br from-dark-800 to-dark-900 rounded-2xl p-4 sm:p-8 border border-purple-500/30 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center space-x-3">

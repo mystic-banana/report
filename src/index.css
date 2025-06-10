@@ -1,3 +1,6 @@
+/* Import report styling */
+@import "./styles/report-patterns.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

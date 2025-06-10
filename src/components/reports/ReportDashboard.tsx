@@ -1,448 +1,601 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import { useAstrologyStore } from "../../store/astrologyStore";
-import { supabase } from "../../lib/supabaseClient";
-import Button from "../ui/Button";
-import LoadingSpinner from "../ui/LoadingSpinner";
-import HTMLReportViewer from "./HTMLReportViewer";
+import { useAuthStore } from "../../store/authStore";
+import type { AstrologyReport } from "../../store/astrologyStore";
+import ReportCard from "./ReportCard";
 import ReportWizard from "./ReportWizard";
+import HTMLReportViewer from "./HTMLReportViewer";
+import Button from "../ui/Button";
+import { toast } from "react-hot-toast";
 import {
-  FileText,
   Plus,
-  Search,
   Filter,
-  Clock,
+  Search,
+  Grid,
+  List as ListIcon,
+  SlidersHorizontal,
+  X,
   Download,
-  Eye,
   Trash2,
-  Crown,
+  Share2,
+  Eye,
 } from "lucide-react";
 
-const ReportDashboard: React.FC = () => {
-  const navigate = useNavigate();
+const ReportDashboard = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { reports, birthCharts, setReports, removeReport } =
-    useAstrologyStore();
+  const { user } = useAuthStore();
+  const {
+    reports,
+    birthCharts,
+    fetchReports,
+    fetchBirthCharts,
+    fetchReportTemplates,
+    fetchTemplateCategories,
+    deleteReport,
+  } = useAstrologyStore();
+
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState<string | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<"date" | "name">("date");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState<string | null>(null);
+  const [premiumFilter, setPremiumFilter] = useState<
+    "all" | "premium" | "free"
+  >("all");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [showFilters, setShowFilters] = useState(false);
 
+  // Effect for fetching initial data based on user
   useEffect(() => {
-    const fetchReports = async () => {
-      setLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from("astrology_reports")
-          .select("*")
-          .order("created_at", { ascending: false });
+    if (user?.id) {
+      const loadData = async () => {
+        setLoading(true);
+        try {
+          const userId = user.id;
+          // Fetch essential data
+          await Promise.all([
+            fetchReports(userId),
+            fetchBirthCharts(userId),
+          ]);
 
-        if (error) throw error;
-        setReports(data || []);
-      } catch (error) {
-        console.error("Error fetching reports:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+          // Fetch non-essential data separately, without blocking UI for errors
+          fetchReportTemplates({ isPublic: true }).catch(err => 
+            console.error("Failed to fetch report templates", err)
+          );
+          fetchTemplateCategories().catch(err => 
+            console.error("Failed to fetch template categories", err)
+          );
 
-    fetchReports();
+        } catch (error) {
+          console.error("Error loading essential dashboard data:", error);
+          toast.error("Failed to load your reports and charts.");
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadData();
+    }
+  }, [user?.id, fetchReports, fetchBirthCharts, fetchReportTemplates, fetchTemplateCategories]);
 
-    // Check if we should open a specific report from URL params
+  // Effect for handling URL search parameters once data is loaded
+  useEffect(() => {
+    // Handle ?view=<report_id>
     const viewReportId = searchParams.get("view");
     if (viewReportId) {
-      setSelectedReport(viewReportId);
+      if (reports.length > 0) {
+        const reportToView = reports.find((r) => r.id === viewReportId);
+        if (reportToView) {
+          setSelectedReport(viewReportId);
+        } else {
+          toast.error("The requested report was not found.");
+          const newSearchParams = new URLSearchParams(searchParams);
+          newSearchParams.delete('view');
+          setSearchParams(newSearchParams, { replace: true });
+        }
+      }
+    } else {
+      // Close viewer if `view` param is removed
+      if (selectedReport) {
+        setSelectedReport(null);
+      }
     }
-  }, [setReports, searchParams]);
+
+    // Handle ?chart=<chart_id> to open the wizard
+    const chartIdParam = searchParams.get("chart");
+    if (chartIdParam) {
+      if (birthCharts.length > 0) {
+        if (birthCharts.some(c => c.id === chartIdParam)) {
+          setShowWizard(true);
+        } else {
+          toast.error("The selected birth chart was not found.");
+          const newSearchParams = new URLSearchParams(searchParams);
+          newSearchParams.delete('chart');
+          setSearchParams(newSearchParams, { replace: true });
+        }
+      }
+    }
+
+    // Handle filters from URL
+    const templateType = searchParams.get("template");
+    if (templateType) setFilterType(templateType);
+
+    const premiumParam = searchParams.get("premium");
+    if (premiumParam === "true") setPremiumFilter("premium");
+
+  }, [searchParams, reports, birthCharts, setSearchParams]);
+
+  const handleCreateReport = () => {
+    setShowWizard(true);
+  };
+
+  const handleCloseWizard = () => {
+    setShowWizard(false);
+    // Clear the chart parameter from URL if it exists
+    if (searchParams.has("chart")) {
+      searchParams.delete("chart");
+      setSearchParams(searchParams);
+    }
+  };
+
+  const handleViewReport = (report: AstrologyReport) => {
+    console.log(`Viewing report: ${report.id}`, {
+      reportTitle: report.title,
+      reportType: report.report_type,
+      birthChartId: report.birth_chart_id
+    });
+    
+    setSelectedReport(report.id);
+    // Update URL to include the report ID
+    searchParams.set("view", report.id);
+    setSearchParams(searchParams);
+    
+    // Pre-fetch report data to ensure it's loaded
+    try {
+      const birthChart = birthCharts.find(chart => chart.id === report.birth_chart_id);
+      if (!birthChart) {
+        console.warn(`Birth chart with ID ${report.birth_chart_id} not found for report ${report.id}`);
+        // We can still proceed, the HTMLReportViewer will handle missing chart data gracefully
+      } else {
+        console.log(`Found associated birth chart: ${birthChart.name}`);
+      }
+    } catch (error) {
+      console.error("Error preparing report view:", error);
+      toast.error("There was an error preparing your report. Please try again.");
+    }
+  };
+
+  const handleCloseReport = () => {
+    setSelectedReport(null);
+    // Remove the report ID from URL
+    searchParams.delete("view");
+    setSearchParams(searchParams);
+  };
 
   const handleDeleteReport = async (reportId: string) => {
-    if (!confirm("Are you sure you want to delete this report?")) return;
-
     try {
-      const { error } = await supabase
-        .from("astrology_reports")
-        .delete()
-        .eq("id", reportId);
-
-      if (error) throw error;
-      removeReport(reportId);
+      await deleteReport(reportId);
+      if (selectedReport === reportId) {
+        handleCloseReport();
+      }
     } catch (error) {
       console.error("Error deleting report:", error);
     }
   };
 
-  const filteredReports = reports
-    .filter((report) => {
-      // Apply search filter
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        if (!report.title.toLowerCase().includes(searchLower)) {
-          return false;
+  const handleExportReport = async (report: AstrologyReport) => {
+    try {
+      // Import the robust server-side PDF generation service
+      const { generateAstrologyReport } = await import(
+        "../../utils/serverPDFService"
+      );
+
+      // Find the associated birth chart
+      const birthChart = birthCharts.find(
+        (chart) => chart.id === report.birth_chart_id,
+      );
+
+      if (!birthChart) {
+        throw new Error("Birth chart not found");
+      }
+      
+      // Get SVG data of the birth chart if available
+      let chartSvg = '';
+      try {
+        // Try to get chart SVG from the DOM if it exists
+        const chartElement = document.querySelector('.chart-container svg');
+        if (chartElement) {
+          chartSvg = chartElement.outerHTML;
+        } else {
+          console.log('Chart SVG element not found, will generate in server');
         }
+      } catch (svgError) {
+        console.warn('Error capturing chart SVG:', svgError);
       }
 
-      // Apply type filter
+      // Prepare comprehensive report data
+      const reportData = {
+        id: report.id,
+        title: report.title,
+        content: report.content,
+        reportType: report.report_type
+          .replace(/-/g, " ")
+          .replace(/\b\w/g, (l) => l.toUpperCase()),
+        userName: birthChart.name,
+        birthDate: birthChart.birth_date,
+        birthTime: birthChart.birth_time,
+        birthLocation: birthChart.birth_location,
+        chartData: birthChart.chart_data,
+        isPremium: report.is_premium,
+        planetaryPositions: birthChart.chart_data?.planets || [],
+        aspectTable: birthChart.chart_data?.aspects || [],
+        elementalBalance: birthChart.chart_data?.elementalBalance || {},
+        modalBalance: birthChart.chart_data?.modalBalance || {},
+        houses: birthChart.chart_data?.houses || [],
+        ascendant: birthChart.chart_data?.ascendant,
+        midheaven: birthChart.chart_data?.midheaven,
+        // Add any additional data needed for complete report
+      };
+      
+      // Generate the professional PDF report server-side
+      await generateAstrologyReport(
+        report.id,
+        chartSvg,
+        reportData,
+        report.is_premium
+      );
+    } catch (error) {
+      console.error("Error exporting report to PDF:", error);
+      // Show error toast or notification
+      alert("Failed to export report to PDF. Please try again.");
+    }
+  };
+
+  const handleShareReport = (report: AstrologyReport) => {
+    // Implement share functionality
+    const shareUrl = `${window.location.origin}/astrology/reports?view=${report.id}`;
+
+    if (navigator.share) {
+      navigator
+        .share({
+          title: report.title,
+          text: "Check out this astrological report!",
+          url: shareUrl,
+        })
+        .catch((err) => console.error("Error sharing:", err));
+    } else {
+      navigator.clipboard.writeText(shareUrl);
+      alert("Report link copied to clipboard!");
+    }
+  };
+
+  const handleFilterChange = (type: string) => {
+    setFilterType(type === filterType ? null : type);
+  };
+
+  const handlePremiumFilterChange = (value: "all" | "premium" | "free") => {
+    setPremiumFilter(value);
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
+
+  const filteredReports = reports
+    .filter((report) => {
+      // Filter by search query
+      if (
+        searchQuery &&
+        !report.title.toLowerCase().includes(searchQuery.toLowerCase())
+      ) {
+        return false;
+      }
+
+      // Filter by report type
       if (filterType && report.report_type !== filterType) {
+        return false;
+      }
+
+      // Filter by premium status
+      if (premiumFilter === "premium" && !report.is_premium) {
+        return false;
+      }
+
+      if (premiumFilter === "free" && report.is_premium) {
         return false;
       }
 
       return true;
     })
     .sort((a, b) => {
-      if (sortBy === "date") {
-        const dateA = new Date(a.created_at || "").getTime();
-        const dateB = new Date(b.created_at || "").getTime();
-        return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
-      } else {
-        return sortOrder === "asc"
-          ? a.title.localeCompare(b.title)
-          : b.title.localeCompare(a.title);
-      }
+      // Sort by creation date (newest first)
+      return (
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     });
 
-  const reportTypes = Array.from(new Set(reports.map((r) => r.report_type)));
+  // Get unique report types for filter
+  const reportTypes = Array.from(
+    new Set(reports.map((report) => report.report_type)),
+  );
 
-  const getBirthChartName = (birthChartId: string) => {
-    const chart = birthCharts.find((c) => c.id === birthChartId);
-    return chart ? chart.name : "Unknown";
-  };
+  // Find the selected report
+  const reportToView = reports.find((r) => r.id === selectedReport);
 
-  const getReportTypeLabel = (type: string) => {
-    return type.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-  };
-
-  const getReportTypeColor = (type: string) => {
-    if (type.includes("vedic")) return "bg-orange-500/20 text-orange-300";
-    if (type.includes("hellenistic")) return "bg-purple-500/20 text-purple-300";
-    if (type.includes("chinese")) return "bg-red-500/20 text-red-300";
-    if (type.includes("transit")) return "bg-blue-500/20 text-blue-300";
-    return "bg-green-500/20 text-green-300";
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+  if (loading) {
     return (
-      date.toLocaleDateString() +
-      " " +
-      date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      <div className="flex items-center justify-center h-screen bg-gray-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+      </div>
     );
-  };
+  }
+
+  if (selectedReport && reportToView) {
+    return (
+      <div className="bg-gray-900 min-h-screen">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={handleCloseReport}
+              className="flex items-center text-gray-400 hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5 mr-2" />
+              Close Report
+            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                onClick={() => handleShareReport(reportToView)}
+                title="Share Report"
+              >
+                <Share2 className="w-5 h-5" />
+              </button>
+              <button
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                onClick={() => handleExportReport(reportToView)}
+                title="Export as PDF"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+              <button
+                className="p-2 text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-lg transition-colors"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Are you sure you want to delete this report?",
+                    )
+                  ) {
+                    handleDeleteReport(reportToView.id);
+                  }
+                }}
+                title="Delete Report"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <HTMLReportViewer report={reportToView} />
+        </div>
+      </div>
+    );
+  }
+
+  if (showWizard) {
+    // Get the chart ID from URL params if it exists
+    const chartId = searchParams.get("chart");
+
+    return (
+      <ReportWizard
+        onClose={handleCloseWizard}
+        selectedChartId={chartId || undefined}
+      />
+    );
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Astrological Reports
-          </h1>
-          <p className="text-gray-400">
-            View, manage, and create personalized astrological reports
-          </p>
-        </div>
-        <div className="mt-4 md:mt-0">
-          <Button
-            variant="primary"
-            size="lg"
-            icon={Plus}
-            onClick={() => setShowWizard(true)}
-          >
-            Create New Report
-          </Button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-gray-800/50 rounded-xl p-6 mb-8">
-        <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search reports..."
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 pl-10 pr-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div>
-              <select
-                className="bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                value={filterType || ""}
-                onChange={(e) => setFilterType(e.target.value || null)}
-              >
-                <option value="">All Report Types</option>
-                {reportTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {getReportTypeLabel(type)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <select
-                className="bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                value={`${sortBy}-${sortOrder}`}
-                onChange={(e) => {
-                  const [newSortBy, newSortOrder] = e.target.value.split("-");
-                  setSortBy(newSortBy as "date" | "name");
-                  setSortOrder(newSortOrder as "asc" | "desc");
-                }}
-              >
-                <option value="date-desc">Newest First</option>
-                <option value="date-asc">Oldest First</option>
-                <option value="name-asc">Name (A-Z)</option>
-                <option value="name-desc">Name (Z-A)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Reports List */}
-      <div className="bg-gray-800/50 rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <LoadingSpinner size="lg" />
-          </div>
-        ) : filteredReports.length === 0 ? (
-          <div className="text-center py-16">
-            <FileText className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-white mb-2">
-              {searchTerm || filterType
-                ? "No matching reports found"
-                : "No reports yet"}
-            </h3>
-            <p className="text-gray-400 mb-6">
-              {searchTerm || filterType
-                ? "Try adjusting your search or filters"
-                : "Create your first astrological report to get started"}
+    <div className="bg-gray-900 min-h-screen">
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">Your Reports</h1>
+            <p className="text-gray-400">
+              View and manage your astrological reports
             </p>
-            {!searchTerm && !filterType && (
-              <Button
-                variant="primary"
-                icon={Plus}
-                onClick={() => setShowWizard(true)}
-              >
-                Create New Report
-              </Button>
-            )}
+          </div>
+          <div className="flex items-center space-x-3">
+            <Button onClick={handleCreateReport} icon={Plus}>
+              Create Report
+            </Button>
+            <Button
+              variant="outline"
+              icon={SlidersHorizontal}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              Filters
+            </Button>
+          </div>
+        </div>
+
+        {/* Birth Charts Section */}
+        {birthCharts.length > 0 && (
+          <div className="mb-8 bg-gray-800/30 rounded-xl p-6 border border-gray-700/50">
+            <h2 className="text-xl font-semibold text-white mb-4">
+              Your Birth Charts
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {birthCharts.slice(0, 4).map((chart) => (
+                <div
+                  key={chart.id}
+                  className="bg-gray-700/50 rounded-lg p-4 border border-gray-600/50 hover:border-purple-500/50 transition-all duration-200"
+                >
+                  <h3 className="font-medium text-white mb-1">{chart.name}</h3>
+                  <p className="text-sm text-gray-400 mb-3">
+                    {new Date(chart.birth_date).toLocaleDateString()}
+                  </p>
+                  <div className="flex space-x-2">
+                    <Link
+                      to={`/astrology/birth-chart?id=${chart.id}`}
+                      className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition-colors flex-1 text-center"
+                    >
+                      View Chart
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setShowWizard(true);
+                        searchParams.set("chart", chart.id);
+                        setSearchParams(searchParams);
+                      }}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded transition-colors flex-1"
+                    >
+                      Generate Report
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {birthCharts.length > 4 && (
+                <Link
+                  to="/astrology/birth-chart"
+                  className="bg-gray-700/30 hover:bg-gray-700/50 rounded-lg p-4 border border-gray-600/30 transition-colors flex items-center justify-center"
+                >
+                  <span className="text-gray-400">
+                    View all {birthCharts.length} charts
+                  </span>
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Filters */}
+        {showFilters && (
+          <div className="bg-gray-800 rounded-xl p-6 mb-6 border border-gray-700">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search reports..."
+                    className="w-full bg-gray-700 text-white rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <div className="flex items-center space-x-2">
+                  <span className="text-gray-400">Type:</span>
+                  {reportTypes.map((type) => (
+                    <button
+                      key={type}
+                      className={`px-3 py-1 rounded-full text-sm ${filterType === type ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"} transition-colors`}
+                      onClick={() => handleFilterChange(type)}
+                    >
+                      {type
+                        .replace(/-/g, " ")
+                        .replace(/\b\w/g, (l) => l.toUpperCase())}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <span className="text-gray-400">Premium:</span>
+                  <button
+                    className={`px-3 py-1 rounded-full text-sm ${premiumFilter === "all" ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"} transition-colors`}
+                    onClick={() => handlePremiumFilterChange("all")}
+                  >
+                    All
+                  </button>
+                  <button
+                    className={`px-3 py-1 rounded-full text-sm ${premiumFilter === "premium" ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"} transition-colors`}
+                    onClick={() => handlePremiumFilterChange("premium")}
+                  >
+                    Premium
+                  </button>
+                  <button
+                    className={`px-3 py-1 rounded-full text-sm ${premiumFilter === "free" ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"} transition-colors`}
+                    onClick={() => handlePremiumFilterChange("free")}
+                  >
+                    Free
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <span className="text-gray-400">View:</span>
+                <button
+                  className={`p-2 rounded ${viewMode === "grid" ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"} transition-colors`}
+                  onClick={() => setViewMode("grid")}
+                >
+                  <Grid className="w-5 h-5" />
+                </button>
+                <button
+                  className={`p-2 rounded ${viewMode === "list" ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"} transition-colors`}
+                  onClick={() => setViewMode("list")}
+                >
+                  <ListIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reports List */}
+        {filteredReports.length > 0 ? (
+          <div
+            className={`grid gap-6 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"}`}
+          >
+            {filteredReports.map((report) => (
+              <ReportCard
+                key={report.id}
+                report={report}
+                layout={viewMode}
+                onView={() => handleViewReport(report)}
+                onShare={() => handleShareReport(report)}
+                onExport={(report) => handleExportReport(report)}
+                onDelete={() => handleDeleteReport(report.id)}
+              />
+            ))}
+          </div>
+        ) : reports.length > 0 ? (
+          <div className="bg-gray-800/50 rounded-xl p-8 text-center border border-gray-700/50">
+            <Filter className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+            <h3 className="text-xl font-semibold text-white mb-2">
+              No matching reports
+            </h3>
+            <p className="text-gray-400 mb-4">
+              Try adjusting your filters or search query
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearchQuery("");
+                setFilterType(null);
+                setPremiumFilter("all");
+              }}
+            >
+              Clear Filters
+            </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-700/50">
-                  <th className="text-left py-4 px-6 text-gray-300 font-medium">
-                    Report Name
-                  </th>
-                  <th className="text-left py-4 px-6 text-gray-300 font-medium">
-                    Type
-                  </th>
-                  <th className="text-left py-4 px-6 text-gray-300 font-medium">
-                    Birth Chart
-                  </th>
-                  <th className="text-left py-4 px-6 text-gray-300 font-medium">
-                    Created
-                  </th>
-                  <th className="text-right py-4 px-6 text-gray-300 font-medium">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredReports.map((report) => (
-                  <tr
-                    key={report.id}
-                    className="border-t border-gray-700 hover:bg-gray-700/30 transition-colors"
-                  >
-                    <td className="py-4 px-6">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-gradient-to-br from-amber-600 to-orange-600 rounded-lg flex items-center justify-center mr-3">
-                          <FileText className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-white flex items-center">
-                            {report.title}
-                            {report.is_premium && (
-                              <Crown className="w-4 h-4 text-amber-400 ml-2" />
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-400">
-                            {report.status === "pending" ? (
-                              <span className="flex items-center">
-                                <Clock className="w-3 h-3 mr-1" />
-                                Processing
-                              </span>
-                            ) : (
-                              "Ready"
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${getReportTypeColor(report.report_type)}`}
-                      >
-                        {getReportTypeLabel(report.report_type)}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-gray-300">
-                      {getBirthChartName(report.birth_chart_id)}
-                    </td>
-                    <td className="py-4 px-6 text-gray-400 text-sm">
-                      {formatDate(report.created_at || "")}
-                    </td>
-                    <td className="py-4 px-6 text-right">
-                      <div className="flex items-center justify-end space-x-2">
-                        <button
-                          className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
-                          onClick={() => setSelectedReport(report.id)}
-                          title="View Report"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
-                          onClick={() => handleDeleteReport(report.id)}
-                          title="Delete Report"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="bg-gray-800/50 rounded-xl p-8 text-center border border-gray-700/50">
+            <Eye className="w-12 h-12 text-purple-500 mx-auto mb-3" />
+            <h3 className="text-xl font-semibold text-white mb-2">
+              No reports yet
+            </h3>
+            <p className="text-gray-400 mb-6">
+              Create your first astrological report to get insights into your
+              birth chart
+            </p>
+            <Button onClick={handleCreateReport} icon={Plus}>
+              Create Your First Report
+            </Button>
           </div>
         )}
       </div>
-
-      {/* Report Templates Section */}
-      <div className="mt-12">
-        <h2 className="text-2xl font-bold text-white mb-6">Report Templates</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Basic Natal Chart Template */}
-          <div className="bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700 hover:border-amber-500/50 transition-colors">
-            <div className="h-40 bg-gradient-to-br from-blue-600/20 to-purple-600/20 relative">
-              <img
-                src="https://images.unsplash.com/photo-1532968961962-8a0cb3a2d4f5?w=500&q=80"
-                alt="Natal Chart"
-                className="w-full h-full object-cover opacity-60"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <h3 className="text-2xl font-bold text-white text-center px-4 drop-shadow-lg">
-                  Basic Natal Chart
-                </h3>
-              </div>
-            </div>
-            <div className="p-6">
-              <p className="text-gray-300 mb-4">
-                Essential planetary positions and their meanings in your birth
-                chart.
-              </p>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  setShowWizard(true);
-                }}
-              >
-                Use Template
-              </Button>
-            </div>
-          </div>
-
-          {/* Vedic Astrology Template */}
-          <div className="bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700 hover:border-amber-500/50 transition-colors">
-            <div className="h-40 bg-gradient-to-br from-orange-600/20 to-red-600/20 relative">
-              <img
-                src="https://images.unsplash.com/photo-1545922421-5ec0bc0f0ef8?w=500&q=80"
-                alt="Vedic Astrology"
-                className="w-full h-full object-cover opacity-60"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <h3 className="text-2xl font-bold text-white text-center px-4 drop-shadow-lg">
-                  Vedic Astrology
-                </h3>
-              </div>
-            </div>
-            <div className="p-6">
-              <p className="text-gray-300 mb-4">
-                Traditional Jyotish analysis with Nakshatras and Vedic house
-                interpretations.
-              </p>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  setShowWizard(true);
-                }}
-              >
-                Use Template
-              </Button>
-            </div>
-          </div>
-
-          {/* Transit Report Template */}
-          <div className="bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700 hover:border-amber-500/50 transition-colors">
-            <div className="h-40 bg-gradient-to-br from-green-600/20 to-teal-600/20 relative">
-              <img
-                src="https://images.unsplash.com/photo-1517976487492-5750f3195933?w=500&q=80"
-                alt="Transit Report"
-                className="w-full h-full object-cover opacity-60"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <h3 className="text-2xl font-bold text-white text-center px-4 drop-shadow-lg">
-                  Transit Report
-                </h3>
-              </div>
-            </div>
-            <div className="p-6">
-              <p className="text-gray-300 mb-4">
-                Current planetary influences on your chart and upcoming
-                transits.
-              </p>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  setShowWizard(true);
-                }}
-              >
-                Use Template
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Report Wizard Modal */}
-      {showWizard && <ReportWizard onClose={() => setShowWizard(false)} />}
-
-      {/* Report Viewer Modal */}
-      {selectedReport && (
-        <HTMLReportViewer
-          report={reports.find((r) => r.id === selectedReport)!}
-          onClose={() => {
-            setSelectedReport(null);
-            // Remove the view parameter from URL
-            const newParams = new URLSearchParams(searchParams);
-            newParams.delete("view");
-            setSearchParams(newParams);
-          }}
-        />
-      )}
     </div>
   );
 };

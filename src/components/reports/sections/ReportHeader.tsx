@@ -17,29 +17,29 @@ const ReportHeader: React.FC<ReportHeaderProps> = ({
     switch (system) {
       case "vedic":
         return {
-          gradient: "from-orange-600 to-red-600",
-          accent: "text-orange-300",
+          gradient: "from-dark-800 to-dark-900",
+          accent: "text-amber-300",
           icon: "🕉️",
           title: "Vedic Jyotish Report",
         };
       case "chinese":
         return {
-          gradient: "from-red-600 to-yellow-600",
-          accent: "text-yellow-300",
+          gradient: "from-dark-800 to-dark-900",
+          accent: "text-amber-300",
           icon: "🐉",
           title: "Chinese Astrology Report",
         };
       case "hellenistic":
         return {
-          gradient: "from-purple-600 to-indigo-600",
+          gradient: "from-dark-800 to-dark-900",
           accent: "text-purple-300",
           icon: "🏛️",
           title: "Hellenistic Astrology Report",
         };
       default:
         return {
-          gradient: "from-blue-600 to-indigo-600",
-          accent: "text-blue-300",
+          gradient: "from-dark-800 to-dark-900",
+          accent: "text-purple-300",
           icon: "⭐",
           title: "Western Astrology Report",
         };
@@ -77,8 +77,8 @@ const ReportHeader: React.FC<ReportHeaderProps> = ({
           </div>
 
           {report.is_premium && (
-            <div className="flex items-center bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 rounded-full">
-              <Crown className="w-5 h-5 text-white mr-2" />
+            <div className="flex items-center bg-gradient-to-r from-purple-800 to-purple-900 px-4 py-2 rounded-full border border-purple-500">
+              <Crown className="w-5 h-5 text-purple-300 mr-2" />
               <span className="text-white font-semibold text-sm">Premium</span>
             </div>
           )}
@@ -117,11 +117,7 @@ const ReportHeader: React.FC<ReportHeaderProps> = ({
           )}
         </div>
 
-        <div className="mt-6 text-center">
-          <p className="text-white/90 text-lg italic">
-            "The stars impel, they do not compel" - Ancient Wisdom
-          </p>
-        </div>
+
       </div>
     </div>
   );

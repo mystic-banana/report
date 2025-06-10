@@ -8,12 +8,24 @@ import { HelmetProvider } from "react-helmet-async";
 import { TempoDevtools } from "tempo-devtools";
 TempoDevtools.init();
 
+const AppWithRouter = () => {
+  if (import.meta.env.VITE_TEMPO) {
+    // Tempo routes handle their own routing context
+    return <App />;
+  }
+
+  // Standard app needs BrowserRouter wrapper
+  return (
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  );
+};
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <HelmetProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <AppWithRouter />
     </HelmetProvider>
   </React.StrictMode>,
 );

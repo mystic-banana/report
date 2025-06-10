@@ -9,6 +9,266 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ad_analytics: {
+        Row: {
+          ad_banner_id: string | null
+          created_at: string | null
+          event_type: string
+          id: string
+          ip_address: unknown | null
+          user_agent: string | null
+          user_id: string | null
+          zone: string | null
+        }
+        Insert: {
+          ad_banner_id?: string | null
+          created_at?: string | null
+          event_type: string
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string | null
+          zone?: string | null
+        }
+        Update: {
+          ad_banner_id?: string | null
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string | null
+          zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_analytics_ad_banner_id_fkey"
+            columns: ["ad_banner_id"]
+            isOneToOne: false
+            referencedRelation: "ad_banners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_banners: {
+        Row: {
+          ad_type: string
+          content: string
+          created_at: string | null
+          created_by: string | null
+          cta_text: string | null
+          end_date: string | null
+          id: string
+          is_active: boolean | null
+          priority: number | null
+          start_date: string | null
+          target_url: string | null
+          title: string
+          updated_at: string | null
+          zones: string[] | null
+        }
+        Insert: {
+          ad_type: string
+          content: string
+          created_at?: string | null
+          created_by?: string | null
+          cta_text?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          start_date?: string | null
+          target_url?: string | null
+          title: string
+          updated_at?: string | null
+          zones?: string[] | null
+        }
+        Update: {
+          ad_type?: string
+          content?: string
+          created_at?: string | null
+          created_by?: string | null
+          cta_text?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          start_date?: string | null
+          target_url?: string | null
+          title?: string
+          updated_at?: string | null
+          zones?: string[] | null
+        }
+        Relationships: []
+      }
+      ad_zones: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_name: string
+          id: string
+          is_active: boolean | null
+          max_height: number | null
+          max_width: number | null
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean | null
+          max_height?: number | null
+          max_width?: number | null
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean | null
+          max_height?: number | null
+          max_width?: number | null
+          name?: string
+        }
+        Relationships: []
+      }
+      admin_audit_logs: {
+        Row: {
+          action: string
+          admin_id: string | null
+          created_at: string | null
+          details: Json | null
+          id: string
+          ip_address: unknown | null
+          target_id: string | null
+          target_type: string
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          target_id?: string | null
+          target_type: string
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          target_id?: string | null
+          target_type?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_audit_logs_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_notifications: {
+        Row: {
+          admin_id: string | null
+          created_at: string | null
+          data: Json | null
+          id: string
+          is_read: boolean | null
+          message: string
+          priority: string | null
+          read_at: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          admin_id?: string | null
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          priority?: string | null
+          read_at?: string | null
+          title: string
+          type: string
+        }
+        Update: {
+          admin_id?: string | null
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          priority?: string | null
+          read_at?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_notifications_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_sessions: {
+        Row: {
+          admin_id: string | null
+          created_at: string | null
+          expires_at: string
+          id: string
+          ip_address: unknown | null
+          is_active: boolean | null
+          last_activity: string | null
+          session_token: string
+          user_agent: string | null
+        }
+        Insert: {
+          admin_id?: string | null
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          session_token: string
+          user_agent?: string | null
+        }
+        Update: {
+          admin_id?: string | null
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          session_token?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_sessions_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       article_reactions: {
         Row: {
           article_id: string | null
@@ -46,8 +306,12 @@ export type Database = {
       }
       articles: {
         Row: {
+          admin_comments: string | null
+          author_avatar: string | null
           author_id: string | null
+          author_name: string | null
           category_id: string | null
+          comment_count: number | null
           content: string | null
           content_quality_score: number | null
           created_at: string | null
@@ -58,20 +322,28 @@ export type Database = {
           generation_metadata: Json | null
           id: string
           is_premium: boolean | null
+          like_count: number | null
           meta_description: string | null
           meta_title: string | null
           published_at: string | null
           read_count: number | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           seo_score: number | null
           slug: string
           status: string | null
           tags: string[] | null
           title: string
           updated_at: string | null
+          view_count: number | null
         }
         Insert: {
+          admin_comments?: string | null
+          author_avatar?: string | null
           author_id?: string | null
+          author_name?: string | null
           category_id?: string | null
+          comment_count?: number | null
           content?: string | null
           content_quality_score?: number | null
           created_at?: string | null
@@ -82,20 +354,28 @@ export type Database = {
           generation_metadata?: Json | null
           id?: string
           is_premium?: boolean | null
+          like_count?: number | null
           meta_description?: string | null
           meta_title?: string | null
           published_at?: string | null
           read_count?: number | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           seo_score?: number | null
           slug: string
           status?: string | null
           tags?: string[] | null
           title: string
           updated_at?: string | null
+          view_count?: number | null
         }
         Update: {
+          admin_comments?: string | null
+          author_avatar?: string | null
           author_id?: string | null
+          author_name?: string | null
           category_id?: string | null
+          comment_count?: number | null
           content?: string | null
           content_quality_score?: number | null
           created_at?: string | null
@@ -106,16 +386,20 @@ export type Database = {
           generation_metadata?: Json | null
           id?: string
           is_premium?: boolean | null
+          like_count?: number | null
           meta_description?: string | null
           meta_title?: string | null
           published_at?: string | null
           read_count?: number | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           seo_score?: number | null
           slug?: string
           status?: string | null
           tags?: string[] | null
           title?: string
           updated_at?: string | null
+          view_count?: number | null
         }
         Relationships: [
           {
@@ -123,6 +407,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "articles_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -319,31 +610,40 @@ export type Database = {
       }
       comments: {
         Row: {
+          admin_comments: string | null
           article_id: string | null
           content: string
           created_at: string | null
           id: string
           parent_id: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           status: string | null
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
+          admin_comments?: string | null
           article_id?: string | null
           content: string
           created_at?: string | null
           id?: string
           parent_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
+          admin_comments?: string | null
           article_id?: string | null
           content?: string
           created_at?: string | null
           id?: string
           parent_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string | null
           updated_at?: string | null
           user_id?: string | null
@@ -361,6 +661,13 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -415,6 +722,69 @@ export type Database = {
             columns: ["chart2_id"]
             isOneToOne: false
             referencedRelation: "birth_charts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_moderation_queue: {
+        Row: {
+          assigned_moderator_id: string | null
+          auto_flagged_reasons: string[] | null
+          content_id: string
+          content_type: string
+          created_at: string | null
+          id: string
+          moderation_notes: string | null
+          priority: number | null
+          reviewed_at: string | null
+          status: string | null
+          submitted_at: string | null
+          submitter_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_moderator_id?: string | null
+          auto_flagged_reasons?: string[] | null
+          content_id: string
+          content_type: string
+          created_at?: string | null
+          id?: string
+          moderation_notes?: string | null
+          priority?: number | null
+          reviewed_at?: string | null
+          status?: string | null
+          submitted_at?: string | null
+          submitter_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_moderator_id?: string | null
+          auto_flagged_reasons?: string[] | null
+          content_id?: string
+          content_type?: string
+          created_at?: string | null
+          id?: string
+          moderation_notes?: string | null
+          priority?: number | null
+          reviewed_at?: string | null
+          status?: string | null
+          submitted_at?: string | null
+          submitter_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_moderation_queue_assigned_moderator_id_fkey"
+            columns: ["assigned_moderator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_moderation_queue_submitter_id_fkey"
+            columns: ["submitter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -506,6 +876,139 @@ export type Database = {
             foreignKeyName: "episodes_podcast_id_fkey"
             columns: ["podcast_id"]
             isOneToOne: false
+            referencedRelation: "podcast_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "episodes_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      playlist_episodes: {
+        Row: {
+          added_at: string | null
+          episode_id: string | null
+          id: string
+          playlist_id: string | null
+          position: number
+        }
+        Insert: {
+          added_at?: string | null
+          episode_id?: string | null
+          id?: string
+          playlist_id?: string | null
+          position: number
+        }
+        Update: {
+          added_at?: string | null
+          episode_id?: string | null
+          id?: string
+          playlist_id?: string | null
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playlist_episodes_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episode_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playlist_episodes_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playlist_episodes_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_playlists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      podcast_analytics: {
+        Row: {
+          completion_percentage: number | null
+          created_at: string | null
+          device_type: string | null
+          duration_listened: number | null
+          episode_id: string | null
+          id: string
+          ip_address: unknown | null
+          play_ended_at: string | null
+          play_started_at: string | null
+          podcast_id: string | null
+          total_duration: number | null
+          updated_at: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          completion_percentage?: number | null
+          created_at?: string | null
+          device_type?: string | null
+          duration_listened?: number | null
+          episode_id?: string | null
+          id?: string
+          ip_address?: unknown | null
+          play_ended_at?: string | null
+          play_started_at?: string | null
+          podcast_id?: string | null
+          total_duration?: number | null
+          updated_at?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          completion_percentage?: number | null
+          created_at?: string | null
+          device_type?: string | null
+          duration_listened?: number | null
+          episode_id?: string | null
+          id?: string
+          ip_address?: unknown | null
+          play_ended_at?: string | null
+          play_started_at?: string | null
+          podcast_id?: string | null
+          total_duration?: number | null
+          updated_at?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_analytics_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episode_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_analytics_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_analytics_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_analytics_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
             referencedRelation: "podcasts"
             referencedColumns: ["id"]
           },
@@ -538,6 +1041,89 @@ export type Database = {
         }
         Relationships: []
       }
+      podcast_downloads: {
+        Row: {
+          created_at: string | null
+          download_completed_at: string | null
+          download_started_at: string | null
+          download_url: string | null
+          episode_id: string | null
+          error_message: string | null
+          expires_at: string | null
+          file_size: number | null
+          id: string
+          local_path: string | null
+          podcast_id: string | null
+          progress_percentage: number | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          download_completed_at?: string | null
+          download_started_at?: string | null
+          download_url?: string | null
+          episode_id?: string | null
+          error_message?: string | null
+          expires_at?: string | null
+          file_size?: number | null
+          id?: string
+          local_path?: string | null
+          podcast_id?: string | null
+          progress_percentage?: number | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          download_completed_at?: string | null
+          download_started_at?: string | null
+          download_url?: string | null
+          episode_id?: string | null
+          error_message?: string | null
+          expires_at?: string | null
+          file_size?: number | null
+          id?: string
+          local_path?: string | null
+          podcast_id?: string | null
+          progress_percentage?: number | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_downloads_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episode_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_downloads_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_downloads_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_downloads_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       podcast_favorites: {
         Row: {
           created_at: string
@@ -558,6 +1144,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "podcast_favorites_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_stats"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "podcast_favorites_podcast_id_fkey"
             columns: ["podcast_id"]
@@ -587,6 +1180,13 @@ export type Database = {
           playlist_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "podcast_playlist_episodes_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episode_stats"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "podcast_playlist_episodes_episode_id_fkey"
             columns: ["episode_id"]
@@ -627,6 +1227,185 @@ export type Database = {
         }
         Relationships: []
       }
+      podcast_reviews: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          helpful_count: number | null
+          id: string
+          is_featured: boolean | null
+          is_verified: boolean | null
+          podcast_id: string | null
+          rating: number
+          reported_count: number | null
+          status: string | null
+          title: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          helpful_count?: number | null
+          id?: string
+          is_featured?: boolean | null
+          is_verified?: boolean | null
+          podcast_id?: string | null
+          rating: number
+          reported_count?: number | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          helpful_count?: number | null
+          id?: string
+          is_featured?: boolean | null
+          is_verified?: boolean | null
+          podcast_id?: string | null
+          rating?: number
+          reported_count?: number | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_reviews_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_reviews_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      podcast_search_index: {
+        Row: {
+          content_type: string
+          created_at: string | null
+          description: string | null
+          episode_id: string | null
+          id: string
+          keywords: string[] | null
+          podcast_id: string | null
+          search_vector: unknown | null
+          tags: string[] | null
+          title: string
+          topics: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          content_type: string
+          created_at?: string | null
+          description?: string | null
+          episode_id?: string | null
+          id?: string
+          keywords?: string[] | null
+          podcast_id?: string | null
+          search_vector?: unknown | null
+          tags?: string[] | null
+          title: string
+          topics?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          content_type?: string
+          created_at?: string | null
+          description?: string | null
+          episode_id?: string | null
+          id?: string
+          keywords?: string[] | null
+          podcast_id?: string | null
+          search_vector?: unknown | null
+          tags?: string[] | null
+          title?: string
+          topics?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_search_index_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episode_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_search_index_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_search_index_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_search_index_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      podcast_subscriptions: {
+        Row: {
+          auto_download: boolean | null
+          id: string
+          notification_enabled: boolean | null
+          podcast_id: string | null
+          subscribed_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          auto_download?: boolean | null
+          id?: string
+          notification_enabled?: boolean | null
+          podcast_id?: string | null
+          subscribed_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          auto_download?: boolean | null
+          id?: string
+          notification_enabled?: boolean | null
+          podcast_id?: string | null
+          subscribed_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_subscriptions_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_subscriptions_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       podcasts: {
         Row: {
           admin_comments: string | null
@@ -640,6 +1419,8 @@ export type Database = {
           image_url: string | null
           last_fetched_at: string | null
           name: string
+          reviewed_at: string | null
+          reviewed_by: string | null
           slug: string | null
           status: string | null
           submitter_id: string | null
@@ -657,6 +1438,8 @@ export type Database = {
           image_url?: string | null
           last_fetched_at?: string | null
           name: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           slug?: string | null
           status?: string | null
           submitter_id?: string | null
@@ -674,6 +1457,8 @@ export type Database = {
           image_url?: string | null
           last_fetched_at?: string | null
           name?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           slug?: string | null
           status?: string | null
           submitter_id?: string | null
@@ -685,6 +1470,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "podcast_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcasts_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -773,6 +1565,69 @@ export type Database = {
           },
         ]
       }
+      report_templates: {
+        Row: {
+          average_rating: number | null
+          category: string
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          is_default: boolean | null
+          is_public: boolean | null
+          layout: string | null
+          name: string
+          preview: string | null
+          sections: Json | null
+          styles: Json | null
+          tags: string[] | null
+          theme: Json | null
+          type: string
+          updated_at: string | null
+          usage_count: number | null
+        }
+        Insert: {
+          average_rating?: number | null
+          category: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          is_public?: boolean | null
+          layout?: string | null
+          name: string
+          preview?: string | null
+          sections?: Json | null
+          styles?: Json | null
+          tags?: string[] | null
+          theme?: Json | null
+          type: string
+          updated_at?: string | null
+          usage_count?: number | null
+        }
+        Update: {
+          average_rating?: number | null
+          category?: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          is_public?: boolean | null
+          layout?: string | null
+          name?: string
+          preview?: string | null
+          sections?: Json | null
+          styles?: Json | null
+          tags?: string[] | null
+          theme?: Json | null
+          type?: string
+          updated_at?: string | null
+          usage_count?: number | null
+        }
+        Relationships: []
+      }
       site_settings: {
         Row: {
           created_at: string | null
@@ -845,6 +1700,165 @@ export type Database = {
         }
         Relationships: []
       }
+      template_categories: {
+        Row: {
+          description: string | null
+          icon: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          description?: string | null
+          icon?: string | null
+          id: string
+          name: string
+        }
+        Update: {
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      template_customizations: {
+        Row: {
+          created_at: string | null
+          customizations: Json
+          is_private: boolean | null
+          name: string | null
+          template_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          customizations: Json
+          is_private?: boolean | null
+          name?: string | null
+          template_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          customizations?: Json
+          is_private?: boolean | null
+          name?: string | null
+          template_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_customizations_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "report_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      template_ratings: {
+        Row: {
+          created_at: string | null
+          rating: number
+          review: string | null
+          template_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          rating: number
+          review?: string | null
+          template_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          rating?: number
+          review?: string | null
+          template_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_ratings_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "report_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      template_themes: {
+        Row: {
+          border_radius: string | null
+          colors: Json
+          fonts: Json
+          id: string
+          name: string
+          shadows: Json | null
+          spacing: Json | null
+        }
+        Insert: {
+          border_radius?: string | null
+          colors: Json
+          fonts: Json
+          id: string
+          name: string
+          shadows?: Json | null
+          spacing?: Json | null
+        }
+        Update: {
+          border_radius?: string | null
+          colors?: Json
+          fonts?: Json
+          id?: string
+          name?: string
+          shadows?: Json | null
+          spacing?: Json | null
+        }
+        Relationships: []
+      }
+      template_usage: {
+        Row: {
+          created_at: string | null
+          customizations: Json | null
+          id: string
+          report_id: string | null
+          template_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customizations?: Json | null
+          id?: string
+          report_id?: string | null
+          template_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customizations?: Json | null
+          id?: string
+          report_id?: string | null
+          template_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_usage_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "report_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transit_forecasts: {
         Row: {
           birth_chart_id: string | null
@@ -882,6 +1896,44 @@ export type Database = {
             columns: ["birth_chart_id"]
             isOneToOne: false
             referencedRelation: "birth_charts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_activity_logs: {
+        Row: {
+          activity_data: Json | null
+          activity_type: string
+          created_at: string | null
+          id: string
+          ip_address: unknown | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          activity_data?: Json | null
+          activity_type: string
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          activity_data?: Json | null
+          activity_type?: string
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_activity_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -932,7 +1984,48 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      episode_stats: {
+        Row: {
+          avg_completion_rate: number | null
+          download_count: number | null
+          id: string | null
+          podcast_id: string | null
+          title: string | null
+          total_listen_time: number | null
+          total_plays: number | null
+          unique_listeners: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "episodes_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "episodes_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      podcast_stats: {
+        Row: {
+          average_rating: number | null
+          avg_completion_rate: number | null
+          id: string | null
+          name: string | null
+          review_count: number | null
+          subscriber_count: number | null
+          total_listen_time: number | null
+          total_plays: number | null
+          unique_listeners: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       add_podcast_with_episodes_txn: {
@@ -957,17 +2050,54 @@ export type Database = {
             }
         Returns: string
       }
+      cleanup_expired_admin_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       fix_loading_podcasts: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_active_ads_for_zone: {
+        Args: { zone_name: string }
+        Returns: {
+          id: string
+          title: string
+          ad_type: string
+          content: string
+          cta_text: string
+          target_url: string
+          priority: number
+        }[]
       }
       increment_article_read_count: {
         Args: { article_slug: string }
         Returns: undefined
       }
+      log_admin_action: {
+        Args: {
+          p_admin_id: string
+          p_action: string
+          p_target_type: string
+          p_target_id?: string
+          p_details?: Json
+        }
+        Returns: string
+      }
       slugify: {
         Args: { "": string }
         Returns: string
+      }
+      track_ad_event: {
+        Args: {
+          p_ad_banner_id: string
+          p_event_type: string
+          p_user_id?: string
+          p_zone?: string
+          p_user_agent?: string
+          p_ip_address?: unknown
+        }
+        Returns: undefined
       }
       unaccent: {
         Args: { "": string }

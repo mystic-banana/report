@@ -66,15 +66,15 @@ const HellenisticReportRenderer: React.FC<HellenisticReportRendererProps> = ({
   ];
 
   return (
-    <div className="hellenistic-report bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 text-white min-h-screen">
+    <div className="hellenistic-report bg-dark-800 text-white min-h-screen" style={{ background: "linear-gradient(135deg, #121212 0%, #202020 100%)" }}>
       <div className="container mx-auto px-6 py-8 max-w-6xl">
-        {/* Classical Pattern Background */}
+        {/* Classical Pattern Background with consistent opacity */}
         <div className="fixed inset-0 opacity-5 pointer-events-none">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iY2xhc3NpY2FsIiB4PSIwIiB5PSIwIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMSIgZmlsbD0ibm9uZSIgb3BhY2l0eT0iMC4xIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2NsYXNzaWNhbCkiLz48L3N2Zz4=')]" />
+          <div className="absolute inset-0 bg-pattern-classical" />
         </div>
 
         {sections.map((section) => (
-          <div key={section.id} className="mb-8 relative z-10">
+          <div key={section.id} className="mb-10 relative z-10">
             {section.component}
           </div>
         ))}

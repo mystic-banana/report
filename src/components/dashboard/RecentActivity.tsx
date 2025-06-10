@@ -72,49 +72,55 @@ const RecentActivity: React.FC = () => {
     const allActivities: ActivityItem[] = [];
 
     // Add birth charts
-    birthCharts.forEach((chart) => {
-      allActivities.push({
-        id: `chart-${chart.id}`,
-        type: "chart",
-        title: `Created Birth Chart: ${chart.name}`,
-        description: `Birth chart for ${chart.name} created successfully`,
-        timestamp: chart.created_at,
-        icon: Star,
-        color: "text-purple-400",
-        bgColor: "bg-purple-500/20",
-        link: "/astrology/birth-chart",
+    if (birthCharts && Array.isArray(birthCharts)) {
+      birthCharts.forEach((chart) => {
+        allActivities.push({
+          id: `chart-${chart.id}`,
+          type: "chart",
+          title: `Created Birth Chart: ${chart.name}`,
+          description: `Birth chart for ${chart.name} created successfully`,
+          timestamp: chart.created_at,
+          icon: Star,
+          color: "text-purple-400",
+          bgColor: "bg-purple-500/20",
+          link: "/astrology/birth-chart",
+        });
       });
-    });
+    }
 
     // Add reports
-    reports.forEach((report) => {
-      allActivities.push({
-        id: `report-${report.id}`,
-        type: "report",
-        title: `Generated ${report.report_type.replace("-", " ").replace(/\b\w/g, (l) => l.toUpperCase())} Report`,
-        description: report.title,
-        timestamp: report.created_at,
-        icon: FileText,
-        color: "text-teal-400",
-        bgColor: "bg-teal-500/20",
-        link: "/astrology/reports",
+    if (reports && Array.isArray(reports)) {
+      reports.forEach((report) => {
+        allActivities.push({
+          id: `report-${report.id}`,
+          type: "report",
+          title: `Generated ${report.report_type.replace("-", " ").replace(/\b\w/g, (l) => l.toUpperCase())} Report`,
+          description: report.title,
+          timestamp: report.created_at,
+          icon: FileText,
+          color: "text-teal-400",
+          bgColor: "bg-teal-500/20",
+          link: "/astrology/reports",
+        });
       });
-    });
+    }
 
     // Add compatibility reports
-    compatibilityReports.forEach((report) => {
-      allActivities.push({
-        id: `compatibility-${report.id}`,
-        type: "compatibility",
-        title: "Generated Compatibility Report",
-        description: `Compatibility analysis with ${report.compatibility_score}% match`,
-        timestamp: report.created_at,
-        icon: Users,
-        color: "text-pink-400",
-        bgColor: "bg-pink-500/20",
-        link: "/astrology/compatibility",
+    if (compatibilityReports && Array.isArray(compatibilityReports)) {
+      compatibilityReports.forEach((report) => {
+        allActivities.push({
+          id: `compatibility-${report.id}`,
+          type: "compatibility",
+          title: "Generated Compatibility Report",
+          description: `Compatibility analysis with ${report.compatibility_score}% match`,
+          timestamp: report.created_at,
+          icon: Users,
+          color: "text-pink-400",
+          bgColor: "bg-pink-500/20",
+          link: "/astrology/compatibility",
+        });
       });
-    });
+    }
 
     // Sort by timestamp (most recent first)
     const sortedActivities = allActivities.sort(
@@ -253,19 +259,23 @@ const RecentActivity: React.FC = () => {
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
             <div className="text-2xl font-bold text-purple-400">
-              {birthCharts.length}
+              {birthCharts && Array.isArray(birthCharts)
+                ? birthCharts.length
+                : 0}
             </div>
             <div className="text-xs text-gray-400">Birth Charts</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-teal-400">
-              {reports.length}
+              {reports && Array.isArray(reports) ? reports.length : 0}
             </div>
             <div className="text-xs text-gray-400">Reports</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-pink-400">
-              {compatibilityReports.length}
+              {compatibilityReports && Array.isArray(compatibilityReports)
+                ? compatibilityReports.length
+                : 0}
             </div>
             <div className="text-xs text-gray-400">Compatibility</div>
           </div>

@@ -1,0 +1,1745 @@
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+  memo,
+} from "react";
+import * as d3 from "d3";
+import {
+  BirthChartData,
+  PlanetaryPosition,
+  HousePosition,
+  ZODIAC_SIGNS,
+} from "../../utils/astronomicalCalculations";
+import {
+  Download,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Star,
+} from "lucide-react";
+import { createClient } from "@supabase/supabase-js";
+import toast from "react-hot-toast";
+import "./InteractiveChart.css";
+
+// Create a single supabase client for the component
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Types and Interfaces
+export enum ChartTheme {
+  LIGHT = 'light',
+  DARK = 'dark',
+  COSMIC = 'cosmic'
+}
+
+export interface InteractiveChartProps {
+  chartData: BirthChartData;
+  width?: number;
+  height?: number;
+  onPlanetClick?: (planet: string) => void;
+  onHouseClick?: (house: number) => void;
+  initialZoom?: number;
+  theme?: ChartTheme;
+  showControls?: boolean;
+  showSummary?: boolean;
+  watermark?: boolean;
+  enableExport?: boolean;
+}
+
+interface ChartSettings {
+  zoom: number;
+  rotation: number;
+  theme: ChartTheme;
+  showCusps: boolean;
+  showAspects: boolean;
+  showDegreeMarkers: boolean;
+  showAspectOrbs: boolean;
+  showRetrogradePlanets: boolean;
+  animationSpeed: number;
+  tooltipDelay: number;
+}
+
+type HoveredElement = {
+  type: 'planet' | 'house' | 'sign' | null;
+  id: string | number | null;
+};
+
+type ContainerSize = {
+  width: number;
+  height: number;
+};
+
+interface ThemeColors {
+  background: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  text: string;
+}
+
+interface CustomTheme {
+  name: string;
+  colors: ThemeColors;
+}
+
+// Zodiac and Planet symbols mapping
+const zodiacSymbols: { [key: string]: string } = {
+  Aries: '♈',
+  Taurus: '♉',
+  Gemini: '♊',
+  Cancer: '♋',
+  Leo: '♌',
+  Virgo: '♍',
+  Libra: '♎',
+  Scorpio: '♏',
+  Sagittarius: '♐',
+  Capricorn: '♑',
+  Aquarius: '♒',
+  Pisces: '♓',
+};
+
+const planetSymbols: { [key: string]: string } = {
+  Sun: '☉',
+  Moon: '☽',
+  Mercury: '☿',
+  Venus: '♀',
+  Mars: '♂',
+  Jupiter: '♃',
+  Saturn: '♄',
+  Uranus: '♅',
+  Neptune: '♆',
+  Pluto: '♇',
+  NorthNode: '☊',
+  SouthNode: '☋',
+  Chiron: '⚶',
+};
+
+// Utility functions
+const getElementColor = (sign: string): string => {
+  const fireColors = ['Aries', 'Leo', 'Sagittarius'];
+  const earthColors = ['Taurus', 'Virgo', 'Capricorn'];
+  const airColors = ['Gemini', 'Libra', 'Aquarius'];
+  const waterColors = ['Cancer', 'Scorpio', 'Pisces'];
+
+  if (fireColors.includes(sign)) return '#ff6b6b'; // Red for Fire
+  if (earthColors.includes(sign)) return '#38b000'; // Green for Earth
+  if (airColors.includes(sign)) return '#90e0ef'; // Blue for Air
+  if (waterColors.includes(sign)) return '#9381ff'; // Purple for Water
+  
+  return '#cccccc'; // Default gray
+};
+
+const getModalitySymbol = (sign: string): string => {
+  const cardinalSigns = ['Aries', 'Cancer', 'Libra', 'Capricorn'];
+  const fixedSigns = ['Taurus', 'Leo', 'Scorpio', 'Aquarius'];
+  const mutableSigns = ['Gemini', 'Virgo', 'Sagittarius', 'Pisces'];
+
+  if (cardinalSigns.includes(sign)) return '▲'; // Triangle for Cardinal
+  if (fixedSigns.includes(sign)) return '■'; // Square for Fixed
+  if (mutableSigns.includes(sign)) return '●'; // Circle for Mutable
+
+  return '○'; // Default empty circle
+};
+
+// Theme definitions
+const themes: Record<ChartTheme, CustomTheme> = {
+  [ChartTheme.LIGHT]: {
+    name: 'Light',
+    colors: {
+      background: '#ffffff',
+      primary: '#302b63',
+      secondary: '#24243e',
+      accent: '#f78c6b',
+      text: '#333333'
+    }
+  },
+  [ChartTheme.DARK]: {
+    name: 'Dark',
+    colors: {
+      background: '#121212',
+      primary: '#bb86fc',
+      secondary: '#03dac6',
+      accent: '#cf6679',
+      text: '#e0e0e0'
+    }
+  },
+  [ChartTheme.COSMIC]: {
+    name: 'Cosmic',
+    colors: {
+      background: '#0f0c29',
+      primary: '#7303c0',
+      secondary: '#ec38bc',
+      accent: '#fdeff9',
+      text: '#ffffff'
+    }
+  }
+};
+
+// The actual component implementation
+
+// Types and Interfaces
+interface InteractiveChartProps {
+  chartData: BirthChartData;
+  width?: number;
+  height?: number;
+  onPlanetClick?: (planet: PlanetaryPosition) => void;
+  onHouseClick?: (house: HousePosition) => void;
+  userName?: string;
+  birthDate?: string;
+  birthTime?: string;
+  birthPlace?: string;
+  showPremiumFeatures?: boolean;
+  customTheme?: ChartTheme;
+}
+
+type ChartTheme = {
+  backgroundColor: string;
+  textColor: string;
+  lineColor: string;
+  houseColors: string[];
+  planetColors: Record<string, string>;
+  aspectColors: Record<string, string>;
+  zodiacColors: Record<string, string>;
+};
+
+enum HoveredElementType {
+  Planet,
+  House,
+  ZodiacSign,
+  Aspect,
+  None
+}
+
+type HoveredElement = {
+  type: HoveredElementType;
+  id: string | number;
+  x: number;
+  y: number;
+};
+
+type ContainerSize = {
+  width: number;
+  height: number;
+};
+
+type ChartSettings = {
+  showZodiacSymbols: boolean;
+  showHouseNumbers: boolean;
+  showPlanetNames: boolean;
+  showAspects: boolean;
+  showDegreeMarkers: boolean;
+  showAspectOrbs: boolean;
+  showRetrogradePlanets: boolean;
+  animationSpeed: number;
+  tooltipDelay: number;
+};
+
+// Zodiac and Planet Symbol Mappings
+const zodiacSymbols: Record<string, string> = {
+  Aries: "♈",
+  Taurus: "♉",
+  Gemini: "♊",
+  Cancer: "♋",
+  Leo: "♌",
+  Virgo: "♍",
+  Libra: "♎",
+  Scorpio: "♏",
+  Sagittarius: "♐",
+  Capricorn: "♑",
+  Aquarius: "♒",
+  Pisces: "♓",
+};
+
+const planetSymbols: Record<string, string> = {
+  Sun: "☉",
+  Moon: "☽",
+  Mercury: "☿",
+  Venus: "♀",
+  Mars: "♂",
+  Jupiter: "♃",
+  Saturn: "♄",
+  Uranus: "♅",
+  Neptune: "♆",
+  Pluto: "♇",
+  "North Node": "☊",
+  "South Node": "☋",
+  Chiron: "⚷",
+  Ceres: "⚳",
+  Pallas: "⚴",
+  Juno: "⚵",
+  Vesta: "⚶",
+};
+
+// Utility functions
+const getElementColor = (sign: string): string => {
+  const fireColors = "#FF5733"; // Aries, Leo, Sagittarius
+  const earthColors = "#8D6E63"; // Taurus, Virgo, Capricorn
+  const airColors = "#81D4FA"; // Gemini, Libra, Aquarius
+  const waterColors = "#4DD0E1"; // Cancer, Scorpio, Pisces
+
+  const fireSigns = ["Aries", "Leo", "Sagittarius"];
+  const earthSigns = ["Taurus", "Virgo", "Capricorn"];
+  const airSigns = ["Gemini", "Libra", "Aquarius"];
+  const waterSigns = ["Cancer", "Scorpio", "Pisces"];
+
+  if (fireSigns.includes(sign)) return fireColors;
+  if (earthSigns.includes(sign)) return earthColors;
+  if (airSigns.includes(sign)) return airColors;
+  if (waterSigns.includes(sign)) return waterColors;
+  return "#9E9E9E"; // Default gray
+};
+
+const getModalitySymbol = (sign: string): string => {
+  const cardinalSigns = ["Aries", "Cancer", "Libra", "Capricorn"];
+  const fixedSigns = ["Taurus", "Leo", "Scorpio", "Aquarius"];
+  const mutableSigns = ["Gemini", "Virgo", "Sagittarius", "Pisces"];
+
+  if (cardinalSigns.includes(sign)) return "⬘"; // Cardinal symbol
+  if (fixedSigns.includes(sign)) return "⬙"; // Fixed symbol
+  if (mutableSigns.includes(sign)) return "⬚"; // Mutable symbol
+  return "";
+};
+
+// Type definitions for the chart component
+interface InteractiveChartProps {
+  birthChartData: BirthChartData;
+  width?: number;
+  height?: number;
+  className?: string;
+  showExport?: boolean;
+  showControls?: boolean;
+  onPlanetClick?: (planet: PlanetaryPosition) => void;
+  onHouseClick?: (house: HousePosition) => void;
+  isPremium?: boolean;
+  theme?: ChartTheme;
+}
+
+type ChartTheme = 'light' | 'dark' | 'cosmic';
+
+type HoveredElementType = 'planet' | 'house' | 'sign' | 'aspect' | null;
+
+interface HoveredElement {
+  type: HoveredElementType;
+  data: PlanetaryPosition | HousePosition | string | [string, string] | null;
+}
+
+interface ContainerSize {
+  width: number;
+  height: number;
+}
+
+interface ChartSettings {
+  showHouseNumbers: boolean;
+  showZodiacSymbols: boolean;
+  showPlanetNames: boolean;
+  showAspects: boolean;
+  showDegreeMarkers: boolean;
+  showAspectOrbs: boolean;
+  showRetrogradePlanets: boolean;
+  animationSpeed: number;
+  tooltipDelay: number;
+}
+
+// Zodiac symbol mapping
+const zodiacSymbols = {
+  Aries: "♈",
+  Taurus: "♉",
+  Gemini: "♊",
+  Cancer: "♋",
+  Leo: "♌",
+  Virgo: "♍",
+  Libra: "♎",
+  Scorpio: "♏",
+  Sagittarius: "♐",
+  Capricorn: "♑",
+  Aquarius: "♒",
+  Pisces: "♓",
+};
+
+// Planet symbol mapping
+const planetSymbols = {
+  Sun: "☉",
+  Moon: "☽",
+  Mercury: "☿",
+  Venus: "♀",
+  Mars: "♂",
+  Jupiter: "♃",
+  Saturn: "♄",
+  Uranus: "♅",
+  Neptune: "♆",
+  Pluto: "♇",
+  "North Node": "☊",
+  "South Node": "☋",
+  Chiron: "⚷",
+};
+
+// Utility functions for the chart
+const getElementColor = (sign: string): string => {
+  const elements: { [key: string]: string } = {
+    fire: "#F9A825", // warm gold
+    earth: "#43A047", // nurturing green
+    air: "#26C6DA", // clear blue
+    water: "#5E35B1", // deep purple
+  };
+
+  const elementMap: { [key: string]: string } = {
+    Aries: "fire", Leo: "fire", Sagittarius: "fire",
+    Taurus: "earth", Virgo: "earth", Capricorn: "earth",
+    Gemini: "air", Libra: "air", Aquarius: "air",
+    Cancer: "water", Scorpio: "water", Pisces: "water",
+  };
+
+  return elements[elementMap[sign] || "fire"];
+};
+
+const getModalitySymbol = (sign: string): string => {
+  const modalities: { [key: string]: string } = {
+    cardinal: "►", // initiating
+    fixed: "■",    // stabilizing
+    mutable: "◆",  // adapting
+  };
+
+  const modalityMap: { [key: string]: string } = {
+    Aries: "cardinal", Cancer: "cardinal", Libra: "cardinal", Capricorn: "cardinal",
+    Taurus: "fixed", Leo: "fixed", Scorpio: "fixed", Aquarius: "fixed",
+    Gemini: "mutable", Virgo: "mutable", Sagittarius: "mutable", Pisces: "mutable",
+  };
+
+  return modalities[modalityMap[sign] || "cardinal"];
+};
+
+// Zodiac sign symbols for chart rendering
+const signSymbols: Record<string, string> = {
+  Aries: "♈",
+  Taurus: "♉",
+  Gemini: "♊",
+  Cancer: "♋",
+  Leo: "♌",
+  Virgo: "♍",
+  Libra: "♎",
+  Scorpio: "♏",
+  Sagittarius: "♐",
+  Capricorn: "♑",
+  Aquarius: "♒",
+  Pisces: "♓",
+};
+
+// Planet symbols for chart rendering
+const planetSymbols: Record<string, string> = {
+  Sun: "☉",
+  Moon: "☽",
+  Mercury: "☿",
+  Venus: "♀",
+  Mars: "♂",
+  Jupiter: "♃",
+  Saturn: "♄",
+  Uranus: "♅",
+  Neptune: "♆",
+  Pluto: "♇",
+  NorthNode: "☊",
+  SouthNode: "☋",
+  Chiron: "⚷",
+};
+
+// Utility function to get ordinal suffix for dates
+const getOrdinalSuffix = (num: number): string => {
+  const j = num % 10;
+  const k = num % 100;
+  if (j === 1 && k !== 11) return num + "st";
+  if (j === 2 && k !== 12) return num + "nd";
+  if (j === 3 && k !== 13) return num + "rd";
+  return num + "th";
+};
+
+// Helper functions for zodiac signs
+const getSignTraits = (sign: string): { element: string; modality: string } => {
+  const traits: Record<string, { element: string; modality: string }> = {
+    Aries: { element: "Fire", modality: "Cardinal" },
+    Taurus: { element: "Earth", modality: "Fixed" },
+    Gemini: { element: "Air", modality: "Mutable" },
+    Cancer: { element: "Water", modality: "Cardinal" },
+    Leo: { element: "Fire", modality: "Fixed" },
+    Virgo: { element: "Earth", modality: "Mutable" },
+    Libra: { element: "Air", modality: "Cardinal" },
+    Scorpio: { element: "Water", modality: "Fixed" },
+    Sagittarius: { element: "Fire", modality: "Mutable" },
+    Capricorn: { element: "Earth", modality: "Cardinal" },
+    Aquarius: { element: "Air", modality: "Fixed" },
+    Pisces: { element: "Water", modality: "Mutable" },
+  };
+  return traits[sign];
+};
+
+const getElementColor = (element: string): string => {
+  const colors: Record<string, string> = {
+    Fire: "#FF5733",
+    Earth: "#8B4513",
+    Air: "#ADD8E6",
+    Water: "#4169E1",
+  };
+  return colors[element];
+};
+
+const getModalitySymbol = (modality: string): string => {
+  const symbols: Record<string, string> = {
+    Cardinal: "→",
+    Fixed: "□",
+    Mutable: "≈",
+  };
+  return symbols[modality];
+};
+
+// Generate a serverless PDF report via API
+const generatePdfReport = async (data: any): Promise<string> => {
+  try {
+    const response = await fetch("/api/generate-pdf-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status} ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    return result.url;
+  } catch (error) {
+    console.error("Error generating PDF report:", error);
+    throw error;
+  }
+};
+
+// Type for chart export mock data
+interface MockReportData {
+  mockData: {
+    user: {
+      firstName: string;
+      lastName: string;
+      birthDate: string;
+      birthTime: string;
+      birthPlace: string;
+    };
+    planets: {
+      name: string;
+      sign: string;
+      house: number;
+      degree: number;
+    }[];
+    houses: {
+      number: number;
+      sign: string;
+    }[];
+  };
+}
+
+// Type for chart settings
+interface ChartSettings {
+  showHouseNumbers: boolean;
+  showZodiacSymbols: boolean;
+  showPlanetNames: boolean;
+  showAspects: boolean;
+  aspectTypes: string[];
+  colorScheme: string;
+}
+
+// Type for chart theme
+type ChartTheme = 'light' | 'dark' | 'cosmic';
+
+// Type for hovered element
+type HoveredElementType = 'planet' | 'house' | 'aspect' | null;
+
+// Interface for the component props
+interface InteractiveChartProps {
+  chartData: BirthChartData;
+  width: number;
+  height: number;
+  showAspects?: boolean;
+  showHouseNumbers?: boolean;
+  onPlanetClick?: (planet: PlanetaryPosition) => void;
+  onHouseClick?: (house: HousePosition) => void;
+  userName?: string;
+  birthDate?: string;
+  lightMode?: boolean;
+  showPremiumFeatures?: boolean;
+  showNatalSummary?: boolean;
+  isMobile?: boolean;
+  isPremiumUser?: boolean;
+  enablePerformanceMode?: boolean;
+  showAdvancedTooltips?: boolean;
+  customTheme?: any;
+}
+
+type HoveredElementType = {
+  type: string;
+  data: PlanetaryPosition | HousePosition;
+} | null;
+
+interface ChartTheme {
+  name: string;
+  colors: {
+    background: string;
+    text: string;
+    primary: string;
+    secondary: string;
+    accent: string;
+  };
+}
+
+interface ChartSettings {
+  showDegreeMarkers: boolean;
+  showAspectOrbs: boolean;
+  showRetrogradePlanets: boolean;
+  animationSpeed: number;
+  tooltipDelay: number;
+}
+
+const InteractiveChart: React.FC<InteractiveChartProps> = memo(
+  ({
+    chartData,
+    width = 600,
+    height = 600,
+    showAspects = true,
+    showHouseNumbers = true,
+    onPlanetClick,
+    onHouseClick,
+    userName = "User",
+    birthDate,
+    lightMode = false,
+    showPremiumFeatures = false,
+    showNatalSummary = true,
+    isMobile = false,
+    isPremiumUser = false,
+    enablePerformanceMode = false,
+    showAdvancedTooltips = true,
+    customTheme,
+  }) => {
+    // Export functions for SVG and PDF - defined at component level so they can be referenced in JSX
+    const handleExport = (): void => {
+      if (!svgRef.current) return;
+      
+      try {
+        // Get SVG data and create downloadable content
+        const svgData = new XMLSerializer().serializeToString(svgRef.current);
+        const watermarkText = `Generated for ${userName} ${birthDate ? "(" + new Date(birthDate).toLocaleDateString() + ")" : ""} at mysticbanana.com`;
+        const watermarkedSvg = svgData.replace(
+          "</svg>",
+          `<text x="50%" y="95%" text-anchor="middle" fill="rgba(128,128,128,0.7)" font-size="12">${watermarkText}</text></svg>`,
+        );
+        
+        // Create a download link
+        const blob = new Blob([watermarkedSvg], { type: "image/svg+xml" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `birth-chart-${userName || "user"}-${Date.now()}.svg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        toast.success("SVG exported successfully!");
+      } catch (error) {
+        console.error("SVG export error:", error);
+        toast.error("Failed to export SVG.");
+      }
+    };
+    
+    // Handle PDF export using server-side generation
+    const handleExportPDF = async (): Promise<void> => {
+      if (!svgRef.current) return;
+      
+      toast.loading("Generating PDF chart...");
+      
+      try {
+        // Get SVG data
+        const svgData = new XMLSerializer().serializeToString(svgRef.current);
+        const watermarkText = `Generated for ${userName} ${birthDate ? "(" + new Date(birthDate).toLocaleDateString() + ")" : ""} at mysticbanana.com`;
+        const watermarkedSvg = svgData.replace(
+          "</svg>",
+          `<text x="50%" y="95%" text-anchor="middle" fill="rgba(128,128,128,0.7)" font-size="12">${watermarkText}</text></svg>`,
+        );
+        
+        // Generate birth chart summary content
+        const chartSummary = `
+          **Birth Chart Analysis**
+
+          Name: ${userName}
+          ${birthDate ? `Birth Date: ${new Date(birthDate).toLocaleDateString()}` : ''}
+          
+          **Planetary Positions**
+          ${chartData.planets.map((p: PlanetaryPosition) => {
+            // Check if retrograde property exists, fall back to speed < 0
+            const isRetrograde = 'retrograde' in p ? p.retrograde : (p.speed !== undefined && p.speed < 0);
+            return `${p.name}: ${p.sign} ${p.degree.toFixed(1)}°${isRetrograde ? ' (R)' : ''}`;
+          }).join('\n')}
+          
+          **House Cusps**
+          ${chartData.houses.map((h: HousePosition, i: number) => `House ${i+1}: ${h.sign} ${h.cusp.toFixed(1)}°`).join('\n')}
+        `;
+        
+        // Create mock data for the server-side PDF generation
+        const mockReportData: MockReportData = {
+          mockData: {
+            reportData: {
+              title: `Birth Chart - ${userName}`,
+              content: chartSummary,
+              report_type: "birth-chart",
+              created_at: new Date().toISOString()
+            },
+            userProfile: {
+              display_name: userName || "User",
+              subscription_tier: isPremiumUser ? "premium" : "basic"
+            },
+            chartData: chartData,
+            settings: {
+              theme: currentLightMode ? "light" : "dark",
+              showAspects: showAspects
+            },
+            isMockReport: true
+          }
+        };
+        
+        // Call server-side PDF generation with simple error handling
+        const result = await generatePdfReport(
+          `chart-${Date.now()}`, // temporary report ID
+          "chart-template", 
+          {
+            format: "A4",
+            landscape: true,
+            printBackground: true,
+            margin: {
+              top: "1cm",
+              right: "1cm",
+              bottom: "1cm",
+              left: "1cm"
+            },
+            displayHeaderFooter: true,
+            headerTemplate: `<div style='font-size: 10px; width: 100%; text-align: center;'>Mystic Banana Birth Chart</div>`,
+            footerTemplate: `<div style='font-size: 10px; width: 100%; text-align: center;'>Generated for ${userName || "User"} | mysticbanana.com</div>`
+          },
+          watermarkedSvg, // Pass SVG as template content
+          mockReportData
+        );
+        
+        toast.dismiss();
+        
+        if (result && result !== null) {
+          toast.success("PDF generated successfully!");
+          // Open the PDF in a new tab
+          window.open(result, "_blank");
+        } else {
+          toast.error("Failed to generate PDF. Falling back to SVG export.");
+          console.error("Server PDF generation failed");
+          // Fall back to SVG export
+          handleExport();
+        }
+      } catch (error) {
+        toast.dismiss();
+        toast.error("PDF export failed. Falling back to SVG export.");
+        console.error("PDF export failed:", error);
+        handleExport();
+      }
+    };
+    const svgRef = useRef<SVGSVGElement>(null);
+    const [selectedPlanet, setSelectedPlanet] =
+      useState<PlanetaryPosition | null>(null);
+    const [selectedHouse, setSelectedHouse] = useState<HousePosition | null>(
+      null,
+    );
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const [rotation, setRotation] = useState(0);
+    const [showElementalGrid, setShowElementalGrid] = useState(false);
+    const [showAspectLegend, setShowAspectLegend] = useState(true);
+    const [currentLightMode, setCurrentLightMode] = useState(lightMode);
+    const [isLoading, setIsLoading] = useState(false);
+    const [containerSize, setContainerSize] = useState({ width, height });
+    const [showSettings, setShowSettings] = useState(false);
+    const [chartSettings, setChartSettings] = useState<ChartSettings>({
+      showDegreeMarkers: true,
+      showAspectOrbs: isPremiumUser,
+      showRetrogradePlanets: true,
+      animationSpeed: 1,
+      tooltipDelay: 500,
+    });
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [hoveredElement, setHoveredElement] = useState<{
+      type: "planet" | "house";
+      data: any;
+    } | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const tooltipRef = useRef<HTMLDivElement>(null);
+    const animationFrameRef = useRef<number>();
+
+    // Responsive sizing
+    useEffect(() => {
+      const updateSize = () => {
+        if (containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          const size = Math.min(rect.width - 40, isMobile ? 350 : 600);
+          setContainerSize({ width: size, height: size });
+        }
+      };
+
+      updateSize();
+      window.addEventListener("resize", updateSize);
+      return () => window.removeEventListener("resize", updateSize);
+    }, [isMobile]);
+
+    // Planet symbols
+    const planetSymbols: { [key: string]: string } = {
+      Sun: "☉",
+      Moon: "☽",
+      Mercury: "☿",
+      Venus: "♀",
+      Mars: "♂",
+      Jupiter: "♃",
+      Saturn: "♄",
+      Uranus: "♅",
+      Neptune: "♆",
+      Pluto: "♇",
+      "North Node": "☊",
+      "South Node": "☋",
+    };
+
+    // Zodiac symbols
+    const zodiacSymbols: { [key: string]: string } = {
+      Aries: "♈",
+      Taurus: "♉",
+      Gemini: "♊",
+      Cancer: "♋",
+      Leo: "♌",
+      Virgo: "♍",
+      Libra: "♎",
+      Scorpio: "♏",
+      Sagittarius: "♐",
+      Capricorn: "♑",
+      Aquarius: "♒",
+      Pisces: "♓",
+    };
+
+    // Memoized theme and colors
+    const currentTheme = useMemo(() => {
+      if (customTheme) return customTheme;
+
+      const defaultThemes = {
+        default: {
+          name: "Default",
+          colors: {
+            background: currentLightMode ? "#ffffff" : "#1a1a1a",
+            primary: currentLightMode ? "#4A148C" : "#FFD700",
+            secondary: currentLightMode ? "#888" : "#666",
+            accent: currentLightMode ? "#B8860B" : "#FFD700",
+            text: currentLightMode ? "#333" : "#fff",
+          },
+        },
+        cosmic: {
+          name: "Cosmic",
+          colors: {
+            background: "#0a0a1a",
+            primary: "#6366f1",
+            secondary: "#4338ca",
+            accent: "#8b5cf6",
+            text: "#e5e7eb",
+          },
+        },
+        elegant: {
+          name: "Elegant",
+          colors: {
+            background: "#1f1f1f",
+            primary: "#d4af37",
+            secondary: "#b8860b",
+            accent: "#ffd700",
+            text: "#f5f5f5",
+          },
+        },
+      };
+
+      return defaultThemes.default;
+    }, [customTheme, currentLightMode]);
+
+    // Memoized planet colors
+    const planetColors: { [key: string]: string } = useMemo(
+      () => ({
+        Sun: "#FFD700",
+        Moon: "#C0C0C0",
+        Mercury: "#FFA500",
+        Venus: "#FF69B4",
+        Mars: "#FF4500",
+        Jupiter: "#4169E1",
+        Saturn: "#8B4513",
+        Uranus: "#00CED1",
+        Neptune: "#4682B4",
+        Pluto: "#800080",
+        "North Node": "#32CD32",
+        "South Node": "#32CD32",
+      }),
+      [],
+    );
+
+    // Memoized calculations for performance
+    const chartCalculations = useMemo(() => {
+      const centerX = containerSize.width / 2;
+      const centerY = containerSize.height / 2;
+      const radius =
+        Math.min(containerSize.width, containerSize.height) / 2 -
+        (isMobile ? 20 : 40);
+
+      return {
+        centerX,
+        centerY,
+        radius,
+        fontSize: isMobile ? 14 : 20,
+        planetRadius: isMobile ? 12 : 15,
+        strokeWidth: isMobile ? 1.5 : 2,
+      };
+    }, [containerSize.width, containerSize.height, isMobile]);
+
+    const drawChart = useCallback(() => {
+      if (!svgRef.current) return;
+      setIsLoading(true);
+
+      // Cancel previous animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      // SVG Export function - exports the chart as SVG with watermark
+      const handleExport = (): void => {
+        if (!svgRef.current) return;
+        
+        try {
+          // Get SVG data and create downloadable content
+          const svgData = new XMLSerializer().serializeToString(svgRef.current);
+          const watermarkText = `Generated for ${userName} ${birthDate ? "(" + new Date(birthDate).toLocaleDateString() + ")" : ""} at mysticbanana.com`;
+          const watermarkedSvg = svgData.replace(
+            "</svg>",
+            `<text x="50%" y="95%" text-anchor="middle" fill="rgba(128,128,128,0.7)" font-size="12">${watermarkText}</text></svg>`,
+          );
+          
+          // Create a download link
+          const blob = new Blob([watermarkedSvg], { type: "image/svg+xml" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `birth-chart-${userName || "user"}-${Date.now()}.svg`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          
+          toast.success("SVG exported successfully!");
+        } catch (error) {
+          console.error("SVG export error:", error);
+          toast.error("Failed to export SVG.");
+        }
+      };
+      
+      // Handle PDF export using server-side generation
+      const handleExportPDF = async (): Promise<void> => {
+        if (!svgRef.current) return;
+        
+        toast.loading("Generating PDF chart...");
+        
+        try {
+          // Get SVG data
+          const svgData = new XMLSerializer().serializeToString(svgRef.current);
+          const watermarkText = `Generated for ${userName} ${birthDate ? "(" + new Date(birthDate).toLocaleDateString() + ")" : ""} at mysticbanana.com`;
+          const watermarkedSvg = svgData.replace(
+            "</svg>",
+            `<text x="50%" y="95%" text-anchor="middle" fill="rgba(128,128,128,0.7)" font-size="12">${watermarkText}</text></svg>`,
+          );
+          
+          // Generate birth chart summary content
+          const chartSummary = `
+            **Birth Chart Analysis**
+
+            Name: ${userName}
+            ${birthDate ? `Birth Date: ${new Date(birthDate).toLocaleDateString()}` : ''}
+            
+            **Planetary Positions**
+            ${chartData.planets.map((p: PlanetaryPosition) => {
+              // Check if retrograde property exists, fall back to speed < 0
+              const isRetrograde = 'retrograde' in p ? p.retrograde : (p.speed !== undefined && p.speed < 0);
+              return `${p.name}: ${p.sign} ${p.degree.toFixed(1)}°${isRetrograde ? ' (R)' : ''}`;
+            }).join('\n')}
+            
+            **House Cusps**
+            ${chartData.houses.map((h: HousePosition, i: number) => `House ${i+1}: ${h.sign} ${h.cusp.toFixed(1)}°`).join('\n')}
+          `;
+          
+          // Create mock data for the server-side PDF generation
+          const mockReportData: MockReportData = {
+            mockData: {
+              reportData: {
+                title: `Birth Chart - ${userName}`,
+                content: chartSummary,
+                report_type: "birth-chart",
+                created_at: new Date().toISOString()
+              },
+              userProfile: {
+                display_name: userName || "User",
+                subscription_tier: isPremiumUser ? "premium" : "basic"
+              },
+              chartData: chartData,
+              settings: {
+                theme: currentLightMode ? "light" : "dark",
+                showAspects: showAspects
+              },
+              isMockReport: true
+            }
+          };
+          
+          // Call server-side PDF generation with simple error handling
+          const result = await generatePdfReport(
+            `chart-${Date.now()}`, // temporary report ID
+            "chart-template", 
+            {
+              format: "A4",
+              landscape: true,
+              printBackground: true,
+              margin: {
+                top: "1cm",
+                right: "1cm",
+                bottom: "1cm",
+                left: "1cm"
+              },
+              displayHeaderFooter: true,
+              headerTemplate: `<div style='font-size: 10px; width: 100%; text-align: center;'>Mystic Banana Birth Chart</div>`,
+              footerTemplate: `<div style='font-size: 10px; width: 100%; text-align: center;'>Generated for ${userName || "User"} | mysticbanana.com</div>`
+            },
+            watermarkedSvg, // Pass SVG as template content
+            mockReportData
+          );
+          
+          toast.dismiss();
+          
+          if (result && result !== null) {
+            toast.success("PDF generated successfully!");
+            // Open the PDF in a new tab
+            window.open(result, "_blank");
+          } else {
+            toast.error("Failed to generate PDF. Falling back to SVG export.");
+            console.error("Server PDF generation failed");
+            // Fall back to SVG export
+            handleExport();
+          }
+        } catch (error) {
+          toast.dismiss();
+          toast.error("PDF export failed. Falling back to SVG export.");
+          console.error("PDF export failed:", error);
+          handleExport();
+        }
+      };
+
+      // Use requestAnimationFrame for better performance
+      animationFrameRef.current = requestAnimationFrame(() => {
+        const svg = d3.select(svgRef.current);
+
+        // Performance optimization: only clear if necessary
+        if (!enablePerformanceMode) {
+          svg.selectAll("*").remove();
+        } else {
+          // Selective updates for performance mode
+          svg.selectAll(".dynamic-element").remove();
+        }
+
+        const {
+          centerX,
+          centerY,
+          radius,
+          fontSize,
+          planetRadius,
+          strokeWidth,
+        } = chartCalculations;
+
+        // Set background color based on theme
+        svg.style("background-color", currentTheme.colors.background);
+
+        // Create main group with zoom and rotation
+        const mainGroup = svg
+          .append("g")
+          .attr(
+            "transform",
+            `translate(${centerX}, ${centerY}) scale(${zoomLevel}) rotate(${rotation})`,
+          );
+
+        // Draw outer circle with theme colors
+        mainGroup
+          .append("circle")
+          .attr("cx", 0)
+          .attr("cy", 0)
+          .attr("r", radius)
+          .attr("fill", "none")
+          .attr("stroke", currentTheme.colors.primary)
+          .attr("stroke-width", 3)
+          .attr("class", enablePerformanceMode ? "static-element" : "");
+
+        // Draw inner circle with theme colors
+        mainGroup
+          .append("circle")
+          .attr("cx", 0)
+          .attr("cy", 0)
+          .attr("r", radius * 0.7)
+          .attr("fill", "none")
+          .attr("stroke", currentTheme.colors.secondary)
+          .attr("stroke-width", 1)
+          .attr("class", enablePerformanceMode ? "static-element" : "");
+
+        // Draw zodiac signs
+        ZODIAC_SIGNS.forEach((sign, index) => {
+          const angle = (index * 30 - 90) * (Math.PI / 180);
+          const x = Math.cos(angle) * (radius * 0.85);
+          const y = Math.sin(angle) * (radius * 0.85);
+
+          const zodiacText = mainGroup
+            .append("text")
+            .attr("x", x)
+            .attr("y", y)
+            .attr("text-anchor", "middle")
+            .attr("font-weight", "bold")
+            .attr("font-size", `${isMobile ? 12 : 14}px`)
+            .attr("fill", currentTheme.colors.text)
+            .attr("class", "dynamic-element zodiac-symbol")
+            .text(zodiacSymbols[sign] || sign.charAt(0));
+            
+          zodiacText.on("mouseout", function () {
+            setHoveredElement(null);
+            d3.select(this)
+              .attr("font-weight", "bold")
+              .attr("font-size", `${isMobile ? 12 : 14}px`);
+          });
+          
+          zodiacText.on("focus", function () {
+            d3.select(this)
+              .attr("font-weight", "bold")
+              .attr("font-size", `${(isMobile ? 12 : 14) + 2}px`);
+          });
+          
+          zodiacText.on("blur", function () {
+            d3.select(this)
+              .attr("font-weight", "bold")
+              .attr("font-size", `${isMobile ? 12 : 14}px`);
+          });
+        });
+
+        // Draw planets
+        chartData.planets.forEach((planet) => {
+          const angle = (planet.longitude - 90) * (Math.PI / 180);
+          const x = Math.cos(angle) * (radius * 0.9);
+          const y = Math.sin(angle) * (radius * 0.9);
+
+          // Planet circle background with enhanced interactions
+          const planetCircle = mainGroup
+            .append("circle")
+            .attr("cx", x)
+            .attr("cy", y)
+            .attr("r", planetRadius)
+            .attr("fill", planetColors[planet.name] || '#FFFFFF' || "#FFF")
+            .attr(
+              "stroke",
+              selectedPlanet?.name === planet.name
+                ? currentTheme.colors.accent
+                : currentTheme.colors.text,
+            )
+            .attr("stroke-width", selectedPlanet?.name === planet.name ? 3 : 1)
+            .attr("class", "dynamic-element planet-circle")
+            .style("cursor", "pointer")
+            .attr("role", "button")
+            .attr(
+              "aria-label",
+              `${planet.name} at ${planet.degree}° ${planet.sign}${planet.house ? ` in ${planet.house}${getOrdinalSuffix(planet.house)} house` : ""}`,
+            )
+            .attr("tabindex", "0")
+            .on("click", () => {
+              setSelectedPlanet(planet);
+              onPlanetClick?.(planet);
+            })
+            .on("keydown", function (event) {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setSelectedPlanet(planet);
+                onPlanetClick?.(planet);
+              }
+            })
+            .on("mouseover", function (event) {
+              if (showAdvancedTooltips) {
+                setHoveredElement({ type: "planet", data: planet });
+              }
+              d3.select(this)
+                .transition()
+                .duration(200 / chartSettings.animationSpeed)
+                .attr("r", planetRadius + 3);
+            })
+            .on("mouseout", function () {
+              setHoveredElement(null);
+              d3.select(this)
+                .transition()
+                .duration(200 / chartSettings.animationSpeed)
+                .attr("r", planetRadius);
+            })
+            .on("focus", function () {
+              d3.select(this)
+                .attr("r", planetRadius + 3)
+                .attr("stroke-width", 3);
+            })
+            .on("blur", function () {
+              d3.select(this)
+                .attr("r", planetRadius)
+                .attr(
+                  "stroke-width",
+                  selectedPlanet?.name === planet.name ? 3 : 1,
+                );
+            });
+// Removed duplicate planet drawing code
+    .append("circle")
+    .attr("cx", x)
+    .attr("cy", y)
+    .attr("r", planetRadius)
+    .attr("fill", planetColors[planet.name] || '#FFFFFF' || "#FFF")
+    .attr(
+      "stroke",
+      selectedPlanet?.name === planet.name
+        ? currentTheme.colors.accent
+        : currentTheme.colors.text,
+    )
+    .attr("stroke-width", selectedPlanet?.name === planet.name ? 3 : 1)
+    .attr("class", "dynamic-element planet-circle")
+    .style("cursor", "pointer")
+    .attr("role", "button")
+    .attr(
+      "aria-label",
+      `${planet.name} at ${planet.degree}° ${planet.sign}${planet.house ? ` in ${planet.house}${getOrdinalSuffix(planet.house)} house` : ""}`,
+    )
+    .attr("tabindex", "0")
+    .on("click", () => {
+      setSelectedPlanet(planet);
+      onPlanetClick?.(planet);
+    })
+    .on("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        setSelectedPlanet(planet);
+        onPlanetClick?.(planet);
+      }
+    })
+    .on("mouseover", function (event) {
+      if (showAdvancedTooltips) {
+        setHoveredElement({ type: "planet", data: planet });
+      }
+      d3.select(this)
+        .transition()
+        .duration(200 / chartSettings.animationSpeed)
+        .attr("r", planetRadius + 3);
+    })
+    .on("mouseout", function () {
+      setHoveredElement(null);
+      d3.select(this)
+        .transition()
+        .duration(200 / chartSettings.animationSpeed)
+        .attr("r", planetRadius);
+    })
+    .on("focus", function () {
+      d3.select(this)
+        .attr("r", planetRadius + 3)
+        .attr("stroke-width", 3);
+    })
+    .on("blur", function () {
+      d3.select(this)
+        .attr("r", planetRadius)
+        .attr(
+          "stroke-width",
+          selectedPlanet?.name === planet.name ? 3 : 1,
+        );
+    });
+
+  // Add retrograde indicator
+  if (chartSettings.showRetrogradePlanets && planet.speed < 0) {
+    mainGroup
+      .append("text")
+      .attr("x", x + planetRadius + 5)
+      .attr("y", y - planetRadius - 5)
+      .attr("text-anchor", "middle")
+      .attr("dominant-baseline", "middle")
+      .attr("fill", "#ff6b6b")
+      .attr("font-size", "8px")
+      .attr("font-weight", "bold")
+      .attr("class", "dynamic-element retrograde-indicator")
+      .text("R");
+  }
+
+  // Planet symbol
+  mainGroup
+    .append("text")
+    .attr("x", x)
+    .attr("y", y)
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .attr("fill", currentTheme.colors.text)
+    .attr("font-size", `${isMobile ? 10 : 12}px`)
+    .attr("class", "dynamic-element planet-symbol")
+    .text(planetSymbols[planet.name] || planet.name.charAt(0));
+// End of planets rendering
+
+// Complete drawChart function and set loading state
+            // Complete drawChart function and set loading state
+      setIsLoading(false);
+    }); // Close requestAnimationFrame callback
+  }; // Close drawChart function
+
+// Call drawChart when component mounts or when relevant props change
+useEffect(() => {
+  if (svgRef.current) {
+    drawChart();
+  }
+  return () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+  };
+}, [chartData, showAspects, currentLightMode, showHouseNumbers, zoomLevel, rotation, enablePerformanceMode, chartSettings, containerSize, drawChart]);
+
+// Return the component's JSX
+return (
+<div
+  ref={containerRef}
+  className={`chart-container relative ${isFullscreen ? "fixed inset-0 z-50 bg-white dark:bg-dark-800 p-4" : ""}`}
+>
+  {isLoading && (
+    <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-black/80 z-10">
+      <div className="loader">Loading...</div>
+    </div>
+  )}
+  
+  {/* Chart controls */}
+  <div className="mb-4 flex flex-wrap justify-between gap-2">
+    <div className="flex flex-wrap gap-2">
+      <Button
+        onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 2))}
+        className="flex items-center"
+        size="sm"
+      >
+        <ZoomIn className="w-4 h-4" />
+      </Button>
+      <Button
+        onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.5))}
+        className="flex items-center"
+        size="sm"
+      >
+        <ZoomOut className="w-4 h-4" />
+      </Button>
+      <Button
+        onClick={() => setRotation(0)}
+        className="flex items-center"
+        size="sm"
+      >
+        <RotateCcw className="w-4 h-4" />
+      </Button>
+      <Button
+        onClick={() => setIsFullscreen(prev => !prev)}
+        className="flex items-center"
+        size="sm"
+      >
+        {isFullscreen ? (
+          <Minimize className="w-4 h-4" />
+        ) : (
+          <Maximize className="w-4 h-4" />
+        )}
+      </Button>
+    </div>
+    
+    {/* Chart export buttons */}
+    <div className="flex flex-wrap gap-2">
+      <Button onClick={handleExport} className="flex items-center" size="sm">
+        <Download className="w-4 h-4 mr-1" /> Export SVG
+      </Button>
+      <Button onClick={handleExportPDF} className="flex items-center" size="sm">
+        <Download className="w-4 h-4 mr-1" /> Export PDF
+      </Button>
+    </div>
+  </div>
+
+  {/* SVG chart */}
+  <svg
+    ref={svgRef}
+    width={containerSize.width}
+    height={containerSize.height}
+    style={{
+      transform: `scale(${zoomLevel}) rotate(${rotation}deg)`,
+      transition: "transform 0.3s ease",
+    }}
+    className="mx-auto"
+  />
+
+  {/* Chart data summary if enabled */}
+  {showNatalSummary && (
+    <div
+      className={`mt-6 ${currentLightMode ? "bg-gray-50" : "bg-dark-700"} rounded-lg p-4 border ${currentLightMode ? "border-gray-200" : "border-dark-600"}`}
+    >
+      <h4
+        className={`text-lg font-semibold ${currentLightMode ? "text-gray-900" : "text-white"} mb-3 flex items-center`}
+      >
+        <Star className="w-4 h-4 mr-2" />
+        Natal Summary
+      </h4>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr
+              className={`border-b ${currentLightMode ? "border-gray-200" : "border-dark-600"}`}
+            >
+              <th
+                className={`text-left py-2 ${currentLightMode ? "text-gray-700" : "text-gray-300"}`}
+              >
+                Planet
+              </th>
+              <th
+                className={`text-left py-2 ${currentLightMode ? "text-gray-700" : "text-gray-300"}`}
+              >
+                Sign
+              </th>
+              <th
+                className={`text-left py-2 ${currentLightMode ? "text-gray-700" : "text-gray-300"}`}
+              >
+                House
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {chartData.planets.slice(0, 10).map((planet, index) => (
+            <tr
+              key={planet.name}
+              className={`${index % 2 === 0 ? (currentLightMode ? "bg-gray-25" : "bg-dark-750") : ""}`}
+            >
+              <td
+                className={`py-2 font-medium ${currentLightMode ? "text-gray-900" : "text-white"}`}
+              >
+                <div className="flex items-center">
+                  <span
+                    className="w-3 h-3 rounded-full mr-2"
+                    style={{
+                      backgroundColor:
+                        planetColors[planet.name] || '#FFFFFF' || "#FFF",
+                    }}
+                  ></span>
+                  {planet.name}
+                </div>
+              </td>
+              <td
+                className={`py-2 ${currentLightMode ? "text-gray-700" : "text-gray-300"}`}
+              >
+                <div className="flex items-center">
+                  <span className="mr-1">
+                    {signSymbols[planet.sign]}
+                  </span>
+                  {planet.sign}
+                </div>
+              </td>
+              <td
+                className={`py-2 ${currentLightMode ? "text-gray-700" : "text-gray-300"}`}
+              >
+                {planet.house
+                  ? `${planet.house}${getOrdinalSuffix(planet.house)}`
+                  : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
+
+// ...
+
+function getOrdinalSuffix(num: number): string {
+  const j = num % 10;
+  const k = num % 100;
+  if (j === 1 && k !== 11) return "st";
+  if (j === 2 && k !== 12) return "nd";
+  if (j === 3 && k !== 13) return "rd";
+  return "th";
+}
+
+function getHouseDescription(house: number): string {
+  const houseDescriptions: Record<number, string> = {
+    1: "Self, identity, appearance, first impressions",
+    2: "Money, possessions, values, self-worth",
+    3: "Communication, siblings, short trips, learning",
+    4: "Home, family, roots, emotional foundation",
+    5: "Creativity, romance, children, self-expression",
+    6: "Work, health, daily routines, service",
+    7: "Partnerships, marriage, open enemies, cooperation",
+    8: "Transformation, shared resources, mysteries, death/rebirth",
+    9: "Philosophy, higher learning, travel, spirituality",
+    10: "Career, reputation, public image, authority",
+    11: "Friends, groups, hopes, dreams, social causes",
+    12: "Subconscious, spirituality, hidden enemies, sacrifice",
+  };
+  return houseDescriptions[house] || "House of life experiences";
+}
+
+function getPlanetInterpretation(planet: PlanetaryPosition): string {
+  const interpretations: Record<string, string> = {
+    Sun: `Your Sun in ${planet.sign} represents your core identity and life purpose. This placement emphasizes ${getSignTraits(planet.sign)} qualities in your personality.`,
+    Moon: `Your Moon in ${planet.sign} reveals your emotional nature and instinctive responses. You find comfort through ${getSignEmotionalNeeds(planet.sign)}.`,
+    Mercury: `Mercury in ${planet.sign} influences how you communicate and process information. Your thinking style is ${getSignCommunicationStyle(planet.sign)}.`,
+    Venus: `Venus in ${planet.sign} shapes your approach to love, beauty, and relationships. You're attracted to ${getSignVenusTraits(planet.sign)}.`,
+    Mars: `Mars in ${planet.sign} drives your energy and ambition. You take action through ${getSignMarsExpression(planet.sign)}.`,
+    Jupiter: `Jupiter in ${planet.sign} expands your worldview and brings opportunities through ${getSignJupiterGifts(planet.sign)}.`,
+    Saturn: `Saturn in ${planet.sign} teaches important life lessons about ${getSignSaturnLessons(planet.sign)}.`,
+    Uranus: `Uranus in ${planet.sign} brings innovation and change to areas related to ${getSignUranusRevolution(planet.sign)}.`,
+    Neptune: `Neptune in ${planet.sign} influences your dreams and spirituality through ${getSignNeptuneInspiration(planet.sign)}.`,
+    Pluto: `Pluto in ${planet.sign} transforms you through deep experiences related to ${getSignPlutoTransformation(planet.sign)}.`,
+  };
+  return interpretations[planet.name] || `${planet.name} in ${planet.sign} brings unique influences to your chart.`;
+}
+
+function getDetailedHouseInterpretation(house: number, sign: string): string {
+  const houseSign: Record<number, string> = {
+    1: `Your ${sign} Ascendant shapes how others see you and your approach to new situations. This gives you a ${getSignApproach(sign)} demeanor.`,
+    2: `With ${sign} on your 2nd house cusp, you approach money and values with ${getSignResourceStyle(sign)} energy.`,
+    3: `${sign} on your 3rd house brings ${getSignCommunicationFocus(sign)} to your daily communications and learning style.`,
+    4: `Your 4th house in ${sign} indicates a home environment that feels ${getSignHomeStyle(sign)}.`,
+    5: `${sign} on your 5th house cusp brings ${getSignCreativeExpression(sign)} to your creative and romantic life.`,
+    6: `With ${sign} ruling your 6th house, your work style is ${getSignWorkStyle(sign)}.`,
+    7: `${sign} on your 7th house cusp attracts partners who are ${getSignPartnerTraits(sign)}.`,
+    8: `Your 8th house in ${sign} transforms you through ${getSignTransformationStyle(sign)} experiences.`,
+    9: `${sign} on your 9th house expands your worldview through ${getSignPhilosophyStyle(sign)} pursuits.`,
+    10: `With ${sign} on your Midheaven, your career path involves ${getSignCareerStyle(sign)} roles.`,
+    11: `${sign} on your 11th house brings ${getSignFriendshipStyle(sign)} to your social connections.`,
+    12: `Your 12th house in ${sign} connects you to the spiritual through ${getSignSpiritualStyle(sign)} practices.`,
+  };
+  return houseSign[house] || `This house placement brings ${sign} energy to this life area.`;
+}
+
+// Helper functions for sign interpretations
+function getSignTraits(sign: string): string {
+  const traits: Record<string, string> = {
+    Aries: "pioneering, energetic, and leadership-oriented",
+    Taurus: "stable, practical, and sensual",
+    Gemini: "curious, communicative, and adaptable",
+    Cancer: "nurturing, intuitive, and protective",
+    Leo: "creative, confident, and generous",
+    Virgo: "analytical, helpful, and detail-oriented",
+    Libra: "harmonious, diplomatic, and aesthetic",
+    Scorpio: "intense, transformative, and perceptive",
+    Sagittarius: "adventurous, philosophical, and optimistic",
+    Capricorn: "ambitious, disciplined, and responsible",
+    Aquarius: "innovative, humanitarian, and independent",
+    Pisces: "compassionate, intuitive, and artistic",
+  };
+  return traits[sign] || "unique";
+}
+
+function getSignEmotionalNeeds(sign: string): string {
+  const needs: Record<string, string> = {
+    Aries: "excitement and new challenges",
+    Taurus: "stability and physical comfort",
+    Gemini: "mental stimulation and variety",
+    Cancer: "emotional security and family connection",
+    Leo: "appreciation and creative expression",
+    Virgo: "order and meaningful service",
+    Libra: "harmony and beautiful surroundings",
+    Scorpio: "deep emotional connections and transformation",
+    Sagittarius: "freedom and philosophical exploration",
+    Capricorn: "achievement and respect",
+    Aquarius: "independence and humanitarian causes",
+    Pisces: "spiritual connection and artistic expression",
+  };
+  return needs[sign] || "authentic self-expression";
+}
+
+function getSignCommunicationStyle(sign: string): string {
+  const styles: Record<string, string> = {
+    Aries: "direct and enthusiastic",
+    Taurus: "practical and deliberate",
+    Gemini: "quick and versatile",
+    Cancer: "intuitive and emotionally aware",
+    Leo: "dramatic and confident",
+    Virgo: "precise and analytical",
+    Libra: "diplomatic and balanced",
+    Scorpio: "intense and probing",
+    Sagittarius: "philosophical and expansive",
+    Capricorn: "structured and authoritative",
+    Aquarius: "innovative and detached",
+    Pisces: "imaginative and empathetic",
+  };
+  return styles[sign] || "unique";
+}
+
+function getSignVenusTraits(sign: string): string {
+  const traits = {
+    Aries: "passion and excitement in relationships",
+    Taurus: "stability and sensual pleasures",
+    Gemini: "intellectual connection and variety",
+    Cancer: "emotional depth and nurturing care",
+    Leo: "romance and grand gestures",
+    Virgo: "practical devotion and attention to detail",
+    Libra: "harmony and aesthetic beauty",
+    Scorpio: "intensity and emotional transformation",
+    Sagittarius: "adventure and philosophical connection",
+    Capricorn: "commitment and traditional values",
+    Aquarius: "friendship and intellectual freedom",
+    Pisces: "spiritual connection and romantic idealism",
+  };
+  return traits[sign] || "authentic connections";
+}
+
+function getSignMarsExpression(sign: string): string {
+  const expressions = {
+    Aries: "direct action and competitive spirit",
+    Taurus: "steady persistence and practical goals",
+    Gemini: "mental agility and diverse interests",
+    Cancer: "protective instincts and emotional motivation",
+    Leo: "creative confidence and dramatic flair",
+    Virgo: "methodical planning and helpful service",
+    Libra: "diplomatic strategy and collaborative effort",
+    Scorpio: "intense focus and transformative power",
+    Sagittarius: "adventurous exploration and philosophical action",
+    Capricorn: "disciplined ambition and strategic planning",
+    Aquarius: "innovative rebellion and humanitarian action",
+    Pisces: "intuitive flow and compassionate service",
+  };
+  return expressions[sign] || "determined effort";
+}
+
+function getSignJupiterGifts(sign: string): string {
+  const gifts = {
+    Aries: "leadership opportunities and pioneering ventures",
+    Taurus: "material abundance and practical wisdom",
+    Gemini: "learning opportunities and communication skills",
+    Cancer: "family blessings and emotional wisdom",
+    Leo: "creative recognition and generous spirit",
+    Virgo: "service opportunities and analytical skills",
+    Libra: "partnership harmony and aesthetic appreciation",
+    Scorpio: "transformative experiences and psychological insight",
+    Sagittarius: "travel opportunities and philosophical growth",
+    Capricorn: "career advancement and structural wisdom",
+    Aquarius: "innovative ideas and humanitarian connections",
+    Pisces: "spiritual insights and artistic inspiration",
+  };
+  return gifts[sign] || "expanded awareness";
+}
+
+function getSignSaturnLessons(sign: string): string {
+  const lessons = {
+    Aries: "patience and thoughtful action",
+    Taurus: "flexibility and letting go of material attachment",
+    Gemini: "focus and deep communication",
+    Cancer: "emotional boundaries and self-nurturing",
+    Leo: "humility and authentic self-expression",
+    Virgo: "accepting imperfection and self-compassion",
+    Libra: "independence and authentic relationships",
+    Scorpio: "trust and healthy transformation",
+    Sagittarius: "commitment and practical wisdom",
+    Capricorn: "emotional expression and work-life balance",
+    Aquarius: "personal connection and emotional intimacy",
+    Pisces: "boundaries and practical manifestation",
+  };
+  return lessons[sign] || "personal growth";
+}
+
+function getSignUranusRevolution(sign: string): string {
+  return `${sign.toLowerCase()} themes and revolutionary change`;
+}
+
+function getSignNeptuneInspiration(sign: string): string {
+  return `${sign.toLowerCase()}-themed dreams and spiritual insights`;
+}
+
+function getSignPlutoTransformation(sign: string): string {
+  return `${sign.toLowerCase()} themes and deep psychological change`;
+}
+
+function getSignApproach(sign: string): string {
+  const approaches = {
+    Aries: "bold and energetic",
+    Taurus: "calm and reliable",
+    Gemini: "curious and adaptable",
+    Cancer: "gentle and protective",
+    Leo: "confident and warm",
+    Virgo: "helpful and precise",
+    Libra: "charming and diplomatic",
+    Scorpio: "magnetic and intense",
+    Sagittarius: "optimistic and adventurous",
+    Capricorn: "professional and responsible",
+    Aquarius: "unique and friendly",
+    Pisces: "compassionate and intuitive",
+  };
+  return approaches[sign] || "distinctive";
+}
+
+function getSignResourceStyle(sign: string): string {
+  return `${getSignTraits(sign)}`;
+}
+
+function getSignCommunicationFocus(sign: string): string {
+  return `${getSignCommunicationStyle(sign)} energy`;
+}
+
+function getSignHomeStyle(sign: string): string {
+  const styles = {
+    Aries: "energetic and action-oriented",
+    Taurus: "comfortable and stable",
+    Gemini: "stimulating and varied",
+    Cancer: "nurturing and secure",
+    Leo: "warm and creative",
+    Virgo: "organized and practical",
+    Libra: "harmonious and beautiful",
+    Scorpio: "private and transformative",
+    Sagittarius: "open and adventurous",
+    Capricorn: "structured and traditional",
+    Aquarius: "unique and progressive",
+    Pisces: "peaceful and spiritual",
+  };
+  return styles[sign] || "distinctive";
+}
+
+function getSignCreativeExpression(sign: string): string {
+  return `${getSignTraits(sign)} creativity`;
+}
+
+function getSignWorkStyle(sign: string): string {
+  return `${getSignTraits(sign)} and methodical`;
+}
+
+function getSignPartnerTraits(sign: string): string {
+  return getSignTraits(sign);
+}
+
+function getSignTransformationStyle(sign: string): string {
+  return `${getSignTraits(sign)} transformation`;
+}
+
+function getSignPhilosophyStyle(sign: string): string {
+  return `${getSignTraits(sign)} learning`;
+}
+
+function getSignCareerStyle(sign: string): string {
+  return `${getSignTraits(sign)} leadership`;
+}
+
+function getSignFriendshipStyle(sign: string): string {
+  return `${getSignTraits(sign)} connections`;
+}
+
+function getSignSpiritualStyle(sign: string): string {
+  return `${getSignTraits(sign)} spiritual practices`;
+}
+
+export default InteractiveChart;
+
+// Utility functions for ordinal suffixes
+function getOrdinalSuffix(num: number): string {
+  const j = num % 10;
+  const k = num % 100;
+  if (j === 1 && k !== 11) return num + "st";
+  if (j === 2 && k !== 12) return num + "nd";
+  if (j === 3 && k !== 13) return num + "rd";
+  return num + "th";
+}

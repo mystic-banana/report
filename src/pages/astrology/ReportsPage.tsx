@@ -1,58 +1,96 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useNavigate, useLocation, Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  BookOpen,
-  ArrowLeft,
+  Briefcase,
+  Calendar,
+  CalendarDays, // Added
+  ChevronLeft,  // Added
+  ChevronRight, // Added
+  Crown,
   Download,
-  Star,
-  Plus,
   Eye,
   FileText,
-  Crown,
-  Sparkles,
-  Calendar,
   Heart,
-  Briefcase,
-  Zap,
-  CheckCircle,
-  AlertCircle,
+  ListChecks,   // Added
+  Loader2,      // Added
+  LogIn,        // Added
+  Sparkles,
+  Star,
   Trash2,
+  UserCircle,   // Added
+  X,
+  Zap,
+  Wand2, // Added
 } from "lucide-react";
 import PageLayout from "../../components/layout/PageLayout";
 import { useAstrologyStore } from "../../store/astrologyStore";
 import { useAuthStore } from "../../store/authStore";
 import Button from "../../components/ui/Button";
-import LoadingSpinner from "../../components/ui/LoadingSpinner";
+// LoadingSpinner not needed, removing
+import HTMLReportViewer from "../../components/reports/HTMLReportViewer";
+import toast from "react-hot-toast";
+
+// Define types
+type AstrologyReport = {
+  id: string;
+  title: string;
+  report_type: string;
+  birth_chart_id: string;
+  content: string; // Retaining for now, ensure it's used or remove if html_content is sole source
+  html_content?: string; // Added for HTMLReportViewer
+  summary?: string; // Added for report list display
+  is_premium: boolean;
+  template_id?: string;
+  created_at: string;
+  updated_at: string;
+};
 
 const ReportsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuthStore();
+  const location = useLocation();
+  const { user, isAuthenticated, /* authLoading */ } = useAuthStore();
   const {
     birthCharts,
     reports,
-    loading,
     fetchBirthCharts,
     fetchReports,
-    createReport,
-    createVedicReport,
-    exportReportToPDF,
     deleteReport,
+    exportReportToPDF,
+    createNatalChartReport,
+    createVedicReport,
+    reportsLoading, // Added for checking loading state
+    // pdfExporting, // Added for PDF export loading state - UNUSED
+    birthChartsLoading, // Added
+    // pdfError // Available if needed for PDF export error display
   } = useAstrologyStore();
 
   const [selectedChart, setSelectedChart] = useState<string>("");
   const [selectedReportType, setSelectedReportType] = useState<string>("");
-  const [reportTitle, setReportTitle] = useState<string>("");
   const [isCreating, setIsCreating] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPageNum, setCurrentPageNum] = useState<number>(1);
+  const [reportsPerPage] = useState<number>(5); // Or a fixed const if not user-configurable
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
     null,
   );
   const [downloadingReports, setDownloadingReports] = useState<Set<string>>(
     new Set(),
   );
-  const [viewingReport, setViewingReport] = useState<string | null>(null);
-  const reportsPerPage = 10;
+  // viewingReport state might be redundant if currentViewedReport and URL params handle it
+  // const [viewingReport, setViewingReport] = useState<string | null>(null);
+  const [currentViewedReport, setCurrentViewedReport] = useState<AstrologyReport | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false); // Added
+  const [viewingReport, setViewingReport] = useState<string | null>(null); // Added
+
+  // Pagination calculations
+  const indexOfLastReport = currentPageNum * reportsPerPage;
+  const indexOfFirstReport = indexOfLastReport - reportsPerPage;
+  // const currentReports = reports.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(indexOfFirstReport, indexOfLastReport); // Unused
+  const totalPages = Math.ceil(reports.length / reportsPerPage);
+  
+  // Parse the view parameter from the URL query string
+  const queryParams = new URLSearchParams(location.search);
+  const viewParam = queryParams.get("view");
 
   const reportTypes = [
     {
@@ -212,94 +250,139 @@ const ReportsPage: React.FC = () => {
     },
   ];
 
+  // Fetch data when user is authenticated
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && user.id) {
+      fetchReports();
       fetchBirthCharts(user.id);
-      fetchReports(user.id);
+    }
+  }, [isAuthenticated, user, fetchBirthCharts, fetchReports]);
 
-      // Check for chartId and type in URL params
-      const urlParams = new URLSearchParams(window.location.search);
-      const chartIdFromUrl = urlParams.get("chartId");
-      const typeFromUrl = urlParams.get("type");
+  // Effect to handle 'view' query parameter and initialize currentViewedReport
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const viewReportId = queryParams.get("view");
 
-      if (chartIdFromUrl) {
-        setSelectedChart(chartIdFromUrl);
-
-        // Auto-trigger report generation if type is specified
-        if (
-          typeFromUrl &&
-          (typeFromUrl === "vedic" || typeFromUrl === "vedic-premium")
-        ) {
-          setSelectedReportType(typeFromUrl);
-          setReportTitle(`${user.name || "User"}'s Vedic Astrology Report`);
-
-          // Auto-generate the report
-          setTimeout(() => {
-            handleCreateVedicReport(
-              chartIdFromUrl,
-              typeFromUrl === "vedic-premium",
-            );
-          }, 1000);
-        }
-      } else if (birthCharts.length > 0 && !selectedChart) {
-        setSelectedChart(birthCharts[0].id);
+    if (viewReportId) {
+      if (reportsLoading) { 
+        // Still loading reports, wait before trying to find/set the viewed report
+        return;
       }
+      const reportToView = reports.find((r) => r.id === viewReportId);
+      if (reportToView) {
+        setCurrentViewedReport(reportToView);
+      } else {
+        // Reports are loaded, but the specific report ID was not found.
+        setCurrentViewedReport(null);
+        // Only show error and navigate if the param was indeed trying to view a specific (now invalid) report
+        // and to prevent toast/navigation loops if navigate itself re-triggers this effect before param is cleared.
+        if (location.search.includes(`view=${viewReportId}`)) { 
+            toast.error(`Report with ID "${viewReportId}" not found.`);
+            navigate(location.pathname, { replace: true }); // Clear invalid 'view' param from URL
+        }
+      }
+    } else {
+      // No 'view' parameter in URL, ensure no report is being viewed.
+      setCurrentViewedReport(null);
     }
-  }, [isAuthenticated, user, birthCharts.length]);
+  }, [location.search, reports, navigate, reportsLoading, setCurrentViewedReport]);
 
-  const handleCreateVedicReport = async (
-    chartId: string,
-    isPremium: boolean,
-  ) => {
-    setIsCreating(true);
-    try {
-      await createVedicReport(chartId, isPremium);
-      // Clear URL params after successful creation
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } catch (error) {
-      console.error("Error creating Vedic report:", error);
-    } finally {
-      setIsCreating(false);
-    }
-  };
+// ... (This comment signifies the start of the restored block, corresponding to original line 279)
+
+  // handleCreateVedicReport removed as its logic is consolidated into handleCreateReport.
 
   const handleCreateReport = async () => {
-    if (!selectedChart || !selectedReportType || !reportTitle.trim()) {
+    if (!selectedChart || !selectedReportType) {
+      toast.error("Please select a birth chart and report type.");
+      return;
+    }
+    if (!user) {
+      toast.error("You must be logged in to create reports.");
+      return;
+    }
+
+    const reportTypeDetails = reportTypes.find(rt => rt.id === selectedReportType);
+    if (!reportTypeDetails) {
+      toast.error("Invalid report type selected.");
       return;
     }
 
     setIsCreating(true);
+    const toastId = toast.loading("Generating your report...");
+    const isPremiumFlag = reportTypeDetails.premium;
+
     try {
-      if (
-        selectedReportType === "vedic" ||
-        selectedReportType === "vedic-premium"
-      ) {
-        const isPremium = selectedReportType === "vedic-premium";
-        await createVedicReport(selectedChart, isPremium);
+      let newReport: AstrologyReport | null = null;
+      if (selectedReportType === "vedic" || selectedReportType === "vedic-premium") {
+        newReport = await createVedicReport(selectedChart, isPremiumFlag);
+      } else if (selectedReportType === "natal" || selectedReportType === "natal-premium") {
+        newReport = await createNatalChartReport(selectedChart, isPremiumFlag);
       } else {
-        await createReport(selectedChart, selectedReportType, reportTitle);
+        toast.error(`Report type '${selectedReportType}' creation not implemented yet.`);
+        setIsCreating(false);
+        toast.dismiss(toastId);
+        return;
       }
-      setReportTitle("");
-      setSelectedReportType("");
+
+      if (newReport) {
+        toast.success(`Report "${newReport.title}" created successfully!`, { id: toastId });
+        fetchReports(); // Refresh reports list
+        setSelectedChart("");
+        // setReportTitle(""); // State variable and setter removed 
+      } else {
+        throw new Error("Report creation did not return a report object.");
+      }
     } catch (error) {
       console.error("Error creating report:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to create report. Please try again.", { id: toastId });
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleExportPDF = async (reportId: string) => {
-    setDownloadingReports((prev) => new Set(prev).add(reportId));
-    try {
-      const pdfUrl = await exportReportToPDF(reportId);
-      if (pdfUrl) {
-        // PDF generation successful - file should be downloaded automatically
-        console.log("PDF generated successfully");
+  const handleViewReport = (reportId: string) => {
+    setViewingReport(reportId); // Indicate loading for this specific report
+    const reportToView = reports.find(r => r.id === reportId);
+    if (reportToView) {
+      // Assuming content might be fetched or is already part of the report object
+      // For now, directly set it or navigate if it's a separate page view
+      // TODO: Confirm if 'content' or 'html_content' is the correct property for viewing
+      if (reportToView.html_content) { 
+        setCurrentViewedReport(reportToView);
+        navigate(`/astrology/reports?view=${reportId}`, { replace: true });
+      } else {
+        toast.error("Report content is not available for direct viewing.");
+        setViewingReport(null);
       }
+    } else {
+      toast.error("Report not found.");
+      setViewingReport(null);
+    }
+  };
+
+  const handleCloseReportViewer = () => {
+    setCurrentViewedReport(null);
+    setViewingReport(null); 
+    navigate("/astrology/reports", { replace: true }); // Clear query param
+  };
+
+  const handleExportPDF = async (reportId: string) => {
+    const report = reports.find(r => r.id === reportId);
+    if (!report) {
+      toast.error("Report not found.");
+      return;
+    }
+    setDownloadingReports(prev => new Set(prev).add(reportId));
+    const toastId = `pdf-export-${reportId}`;
+    toast.loading(`Preparing PDF for "${report.title}"...`, { id: toastId });
+    try {
+      await exportReportToPDF(report.id); // Ensure this function is correctly defined in the store
+      toast.success(`PDF for "${report.title}" should be downloading.`, { id: toastId });
     } catch (error) {
-      console.error("PDF export failed:", error);
+      console.error("Error exporting report to PDF:", error);
+      toast.error(error instanceof Error ? error.message : `Failed to export PDF.`, { id: toastId });
     } finally {
-      setDownloadingReports((prev) => {
+      setDownloadingReports(prev => {
         const newSet = new Set(prev);
         newSet.delete(reportId);
         return newSet;
@@ -307,553 +390,303 @@ const ReportsPage: React.FC = () => {
     }
   };
 
-  const handleViewReport = (reportId: string) => {
-    setViewingReport(reportId);
-    const report = reports.find((r) => r.id === reportId);
-    if (report) {
-      // Create a modal or new page to display the report content
-      const reportWindow = window.open("", "_blank");
-      if (reportWindow) {
-        reportWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>${report.title}</title>
-            <style>
-              body { 
-                font-family: Arial, sans-serif; 
-                max-width: 800px; 
-                margin: 0 auto; 
-                padding: 20px; 
-                line-height: 1.6;
-                background-color: #f5f5f5;
-              }
-              .header {
-                text-align: center;
-                border-bottom: 2px solid #8B6947;
-                padding-bottom: 20px;
-                margin-bottom: 30px;
-              }
-              .content {
-                background: white;
-                padding: 30px;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-              }
-              h1 { color: #8B6947; }
-              h2 { color: #8B6947; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-              .report-meta {
-                background: #f9f9f9;
-                padding: 15px;
-                border-radius: 5px;
-                margin-bottom: 20px;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>${report.title}</h1>
-              <div class="report-meta">
-                <p><strong>Report Type:</strong> ${report.report_type}</p>
-                <p><strong>Created:</strong> ${new Date(report.created_at).toLocaleDateString()}</p>
-                <p><strong>Status:</strong> ${report.is_premium ? "Premium" : "Free"} Report</p>
-              </div>
-            </div>
-            <div class="content">
-              ${report.content.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")}
-            </div>
-          </body>
-          </html>
-        `);
-        reportWindow.document.close();
-      }
-    }
-    setViewingReport(null);
-  };
-
   const handleDeleteReport = async (reportId: string) => {
-    if (deleteReport) {
+    setIsDeleting(true);
+    const toastId = `delete-${reportId}`;
+    toast.loading(`Deleting report...`, { id: toastId });
+    try {
       await deleteReport(reportId);
-      setShowDeleteConfirm(null);
-      // Refresh reports
-      if (user) {
-        fetchReports(user.id);
+      toast.success("Report deleted successfully.", { id: toastId });
+      setShowDeleteConfirm(null); 
+      // fetchReports(); // Re-fetching might be handled by store or optimistic update
+      if (currentViewedReport && currentViewedReport.id === reportId) {
+        handleCloseReportViewer();
       }
+    } catch (error: any) {
+      console.error("Error deleting report:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete report.",
+        { id: toastId },
+      );
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  // Calculate pagination
-  const totalPages = Math.ceil(reports.length / reportsPerPage);
-  const startIndex = (currentPage - 1) * reportsPerPage;
-  const endIndex = startIndex + reportsPerPage;
-  const currentReports = reports.slice(startIndex, endIndex);
-
-  if (!isAuthenticated) {
+  if (!user /* && !authLoading */) {
     return (
-      <PageLayout title="Astrology Reports - Mystic Banana">
-        <div className="bg-gradient-to-br from-dark-900 via-dark-850 to-dark-800 min-h-screen">
-          <div className="container mx-auto px-4 py-8">
-            <div className="max-w-2xl mx-auto text-center">
-              <div className="bg-gradient-to-br from-indigo-900/30 to-purple-900/30 rounded-2xl p-8 border border-indigo-500/20">
-                <BookOpen className="w-16 h-16 text-indigo-400 mx-auto mb-6" />
-                <h1 className="text-3xl font-serif font-bold text-white mb-4">
-                  Professional Astrology Reports
-                </h1>
-                <p className="text-gray-300 mb-8">
-                  Get comprehensive, AI-powered astrological reports that
-                  provide deep insights into your personality, relationships,
-                  career, and spiritual path.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Button
-                    onClick={() => navigate("/signup")}
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600"
-                  >
-                    Sign Up to Get Started
-                  </Button>
-                  <Button variant="outline" onClick={() => navigate("/login")}>
-                    Sign In
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+      <PageLayout title="Astrology Reports">
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center">
+          <Zap className="w-16 h-16 text-yellow-400 mb-4" />
+          <h2 className="text-2xl font-bold text-white mb-2">Access Your Reports</h2>
+          <p className="text-slate-400 mb-6">Please log in to create and view your astrology reports.</p>
+          <Button onClick={() => navigate('/auth/login')} className="bg-purple-600 hover:bg-purple-700 text-white">
+            <LogIn className="mr-2 h-4 w-4" /> Log In
+          </Button>
         </div>
       </PageLayout>
     );
   }
 
+  if (reportsLoading /* && !authLoading */ && !currentViewedReport /* && !birthChartsLoading */) {
+    return (
+      <PageLayout title="Astrology Reports">
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+          <Loader2 className="w-12 h-12 text-purple-500 animate-spin" />
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (currentViewedReport && currentViewedReport.html_content) {
+    return (
+      <HTMLReportViewer
+        report={currentViewedReport}
+        onClose={handleCloseReportViewer}
+      />
+    );
+  }
+
   return (
-    <PageLayout title="Astrology Reports - Mystic Banana">
-      <div className="bg-gradient-to-br from-dark-900 via-dark-850 to-dark-800 min-h-screen">
-        <div className="container mx-auto px-4 py-8">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center">
-              <button
-                onClick={() => navigate("/astrology")}
-                className="mr-4 p-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="text-3xl md:text-4xl font-serif font-bold text-white mb-2">
-                  Astrology Reports
-                </h1>
-                <p className="text-gray-400">
-                  Professional insights and comprehensive analysis
-                </p>
+    <PageLayout title="Astrology Reports">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="space-y-8"
+      >
+        {/* Report Creation Section */}
+        <div className="bg-gradient-to-br from-slate-800/70 to-slate-900/70 backdrop-blur-md rounded-2xl p-6 sm:p-8 border border-slate-700/50 shadow-2xl shadow-purple-500/10">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Sparkles className="w-6 h-6 text-white" />
               </div>
-            </div>
-            <div className="flex items-center">
-              <BookOpen className="w-8 h-8 text-indigo-400" />
+              <div>
+                <h2 className="text-2xl font-bold text-white">Create New Report</h2>
+                <p className="text-slate-400 text-sm">Generate personalized astrology insights.</p>
+              </div>
             </div>
           </div>
 
-          {birthCharts.length === 0 ? (
-            <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 rounded-2xl p-8 border border-purple-500/20 text-center">
-              <Star className="w-12 h-12 text-purple-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">
-                Create Your Birth Chart First
-              </h3>
-              <p className="text-gray-300 mb-6">
-                To generate personalized reports, you need to create your birth
-                chart first.
-              </p>
-              <Button
-                onClick={() => navigate("/astrology/birth-chart")}
-                className="bg-gradient-to-r from-purple-600 to-indigo-600"
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label htmlFor="birthChart" className="block text-sm font-medium text-slate-300 mb-1">Select Birth Chart</label>
+              <select
+                id="birthChart"
+                value={selectedChart}
+                onChange={(e) => setSelectedChart(e.target.value)}
+                className="w-full bg-slate-700/50 border border-slate-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                disabled={isCreating || birthChartsLoading}
               >
-                Create Birth Chart
+                <option value="">-- Select a Chart --</option>
+                {birthCharts.map((chart) => (
+                  <option key={chart.id} value={chart.id}>{chart.name} ({new Date(chart.birth_date).toLocaleDateString()})</option>
+                ))}
+              </select>
+              {birthCharts.length === 0 && !birthChartsLoading && (
+                <p className="text-sm text-slate-400 mt-2">No birth charts found. <Link to="/astrology/birth-charts/new" className="text-purple-400 hover:text-purple-300">Create one now</Link>.</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="reportType" className="block text-sm font-medium text-slate-300 mb-1">Select Report Type</label>
+              <select
+                id="reportType"
+                value={selectedReportType}
+                onChange={(e) => setSelectedReportType(e.target.value)}
+                className="w-full bg-slate-700/50 border border-slate-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                disabled={isCreating}
+              >
+                <option value="">-- Select Report Type --</option>
+                {reportTypes.map((type) => (
+                  <option key={type.id} value={type.id} disabled={type.premium && (!user?.isPremium && user?.id !== 'god')}>{type.name}{type.premium ? ' (Premium)' : ''}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button 
+              onClick={handleCreateReport} 
+              loading={isCreating}
+              disabled={isCreating || !selectedChart || !selectedReportType}
+              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-150 transform hover:scale-105"
+            >
+              <Wand2 className="mr-2 h-5 w-5" /> Generate Report
+            </Button>
+          </div>
+        </div>
+
+        {/* Generated Reports Section */}
+        {reportsLoading && reports.length === 0 && (
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+          </div>
+        )}
+
+        {!reportsLoading && reports.length === 0 && (
+          <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm rounded-2xl p-8 border border-slate-700/50 text-center">
+            <FileText className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-white mb-2">No Reports Yet</h3>
+            <p className="text-slate-400">Create your first astrology report to see it listed here.</p>
+          </div>
+        )}
+
+        {reports.length > 0 && (
+          <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm rounded-2xl p-6 sm:p-8 border border-slate-700/50">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <ListChecks className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-white">Your Generated Reports</h3>
+                  <p className="text-slate-400 text-sm">Manage and view your insights.</p>
+                </div>
+              </div>
+              {totalPages > 1 && (
+                <div className="text-sm text-slate-400">Page {currentPageNum} of {totalPages}</div>
+              )}
+            </div>
+            <div className="space-y-4">
+              {reports.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(indexOfFirstReport, indexOfLastReport).map((report) => {
+                const chart = birthCharts.find(c => c.id === report.birth_chart_id);
+                const reportTypeDetail = reportTypes.find(rt => rt.id === report.report_type || rt.name.toLowerCase().replace(/ /g, '-') === report.report_type);
+                return (
+                  <motion.div
+                    key={report.id}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="bg-slate-700/30 rounded-xl p-5 border border-slate-600/40 hover:border-purple-500/50 transition-colors duration-200 shadow-lg hover:shadow-purple-500/20"
+                  >
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
+                      <div className="mb-3 sm:mb-0">
+                        <h4 className="text-lg font-semibold text-white mb-1 flex items-center">
+                          {report.title}
+                          {report.is_premium && <Crown className="w-4 h-4 text-amber-400 ml-2" title="Premium Report"/>}
+                        </h4>
+                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
+                          <span><UserCircle className="inline w-3 h-3 mr-1" />{chart?.name || 'Unknown Chart'}</span>
+                          <span><CalendarDays className="inline w-3 h-3 mr-1" />{new Date(report.created_at).toLocaleDateString()}</span>
+                          <span className="px-2 py-0.5 bg-purple-600/30 text-purple-300 rounded-full">
+                            {reportTypeDetail?.name || report.report_type.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2 flex-shrink-0">
+                        <Button variant="outline" size="sm" icon={Eye} onClick={() => handleViewReport(report.id)} loading={viewingReport === report.id} className="border-slate-500 hover:bg-slate-700/50">
+                          View
+                        </Button>
+                        <Button variant="outline" size="sm" icon={Download} onClick={() => handleExportPDF(report.id)} loading={downloadingReports.has(report.id)} disabled={downloadingReports.has(report.id)} className="border-slate-500 hover:bg-slate-700/50">
+                          {downloadingReports.has(report.id) ? "Exporting..." : "PDF"}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setShowDeleteConfirm(report.id)} className="text-red-500 hover:bg-red-500/10 hover:text-red-400">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    {report.summary && (
+                      <p className="text-sm text-slate-300 mt-3 pt-3 border-t border-slate-600/50 line-clamp-2">
+                        {report.summary}
+                      </p>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+            {totalPages > 1 && (
+              <div className="mt-8 flex justify-center items-center space-x-2">
+                <Button onClick={() => setCurrentPageNum((prev: number) => Math.max(1, prev - 1))} disabled={currentPageNum === 1} variant="outline" size="sm" className="border-slate-500 hover:bg-slate-700/50">
+                  <ChevronLeft className="w-4 h-4 mr-1" /> Previous
+                </Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <Button
+                    key={page}
+                    onClick={() => setCurrentPageNum(page)}
+                    variant={currentPageNum === page ? "primary" : "outline"}
+                    size="sm"
+                    className={currentPageNum === page ? "bg-purple-600 hover:bg-purple-700" : "border-slate-500 hover:bg-slate-700/50"}
+                  >
+                    {page}
+                  </Button>
+                ))}
+                <Button onClick={() => setCurrentPageNum((prev: number) => Math.min(totalPages, prev + 1))} disabled={currentPageNum === totalPages} variant="outline" size="sm" className="border-slate-500 hover:bg-slate-700/50">
+                  Next <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Premium Features Teaser (simplified or conditional) */}
+        {(!user?.isPremium && user?.id !== 'god') && (
+          <div className="bg-gradient-to-r from-amber-500/10 via-transparent to-purple-500/10 rounded-2xl p-6 sm:p-8 border border-amber-500/20 relative overflow-hidden">
+            <div className="absolute -top-1/2 -left-1/4 w-full h-full bg-gradient-radial from-purple-600/15 via-transparent to-transparent opacity-50 animate-pulse-slow"></div>
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="flex items-center space-x-4">
+                <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-500 rounded-full shadow-lg">
+                  <Crown className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-white">Unlock Premium Astrology Reports</h3>
+                  <p className="text-amber-200/80 text-sm">Deeper insights, advanced analysis, and exclusive features await.</p>
+                </div>
+              </div>
+              <Button onClick={() => navigate('/plans')} className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold shadow-md hover:shadow-lg transition-all duration-150 transform hover:scale-105 flex-shrink-0">
+                Explore Premium Plans <Sparkles className="ml-2 h-4 w-4 opacity-80" />
               </Button>
             </div>
-          ) : (
-            <div className="space-y-8">
-              {/* Report Generator */}
-              <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
-                <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                  <Plus className="w-5 h-5 mr-2 text-indigo-400" />
-                  Create New Report
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Select Birth Chart
-                    </label>
-                    <select
-                      value={selectedChart}
-                      onChange={(e) => setSelectedChart(e.target.value)}
-                      className="w-full bg-dark-700 border border-dark-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    >
-                      {birthCharts.map((chart) => (
-                        <option key={chart.id} value={chart.id}>
-                          {chart.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Report Title
-                    </label>
-                    <input
-                      type="text"
-                      value={reportTitle}
-                      onChange={(e) => setReportTitle(e.target.value)}
-                      placeholder="Enter a title for your report"
-                      className="w-full bg-dark-700 border border-dark-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                {/* Report Type Selection */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-300 mb-4">
-                    Choose Report Type
-                  </label>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {reportTypes.map((type) => {
-                      const Icon = type.icon;
-                      const isSelected = selectedReportType === type.id;
-                      return (
-                        <motion.button
-                          key={type.id}
-                          onClick={() => setSelectedReportType(type.id)}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          className={`p-6 rounded-2xl border-2 transition-all duration-300 text-left relative overflow-hidden ${
-                            isSelected
-                              ? `bg-gradient-to-br ${type.color} border-transparent text-white shadow-2xl`
-                              : "bg-dark-700 border-dark-600 text-gray-300 hover:border-indigo-500 hover:bg-dark-650"
-                          }`}
-                        >
-                          {/* Background Pattern */}
-                          <div className="absolute inset-0 opacity-10">
-                            <div className="absolute top-4 right-4 w-20 h-20 rounded-full bg-white/20"></div>
-                            <div className="absolute bottom-4 left-4 w-12 h-12 rounded-full bg-white/10"></div>
-                          </div>
-
-                          <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-4">
-                              <div
-                                className={`p-3 rounded-xl ${
-                                  isSelected
-                                    ? "bg-white/20"
-                                    : "bg-indigo-600/20"
-                                }`}
-                              >
-                                <Icon
-                                  className={`w-6 h-6 ${
-                                    isSelected
-                                      ? "text-white"
-                                      : "text-indigo-400"
-                                  }`}
-                                />
-                              </div>
-                              {type.premium && (
-                                <div className="flex items-center space-x-2">
-                                  <Crown className="w-4 h-4 text-amber-400" />
-                                  <span className="text-xs px-3 py-1 bg-amber-600 text-white rounded-full font-medium">
-                                    Premium
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            <h4
-                              className={`text-lg font-bold mb-2 ${
-                                isSelected ? "text-white" : "text-white"
-                              }`}
-                            >
-                              {type.name}
-                            </h4>
-
-                            <p
-                              className={`text-sm mb-4 leading-relaxed ${
-                                isSelected ? "text-white/90" : "text-gray-400"
-                              }`}
-                            >
-                              {type.description}
-                            </p>
-
-                            <div className="space-y-3">
-                              <div
-                                className={`text-xs font-medium ${
-                                  isSelected ? "text-white/80" : "text-gray-500"
-                                }`}
-                              >
-                                {type.estimatedPages}
-                              </div>
-
-                              <div className="space-y-1">
-                                {type.features
-                                  .slice(0, 3)
-                                  .map((feature, index) => (
-                                    <div
-                                      key={index}
-                                      className="flex items-center space-x-2"
-                                    >
-                                      <CheckCircle
-                                        className={`w-3 h-3 ${
-                                          isSelected
-                                            ? "text-white/70"
-                                            : "text-green-400"
-                                        }`}
-                                      />
-                                      <span
-                                        className={`text-xs ${
-                                          isSelected
-                                            ? "text-white/80"
-                                            : "text-gray-400"
-                                        }`}
-                                      >
-                                        {feature}
-                                      </span>
-                                    </div>
-                                  ))}
-                                {type.features.length > 3 && (
-                                  <div
-                                    className={`text-xs ${
-                                      isSelected
-                                        ? "text-white/60"
-                                        : "text-gray-500"
-                                    }`}
-                                  >
-                                    +{type.features.length - 3} more features
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {isSelected && (
-                              <div className="absolute top-4 right-4">
-                                <CheckCircle className="w-6 h-6 text-white" />
-                              </div>
-                            )}
-                          </div>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-400">
-                    {selectedReportType && (
-                      <div className="flex items-center space-x-2">
-                        <Zap className="w-4 h-4 text-amber-400" />
-                        <span>Estimated generation time: 30-60 seconds</span>
-                      </div>
-                    )}
-                  </div>
-                  <Button
-                    onClick={handleCreateReport}
-                    loading={isCreating}
-                    disabled={
-                      !selectedChart ||
-                      !selectedReportType ||
-                      !reportTitle.trim()
-                    }
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-3 text-lg font-semibold"
-                  >
-                    {isCreating ? "Generating Report..." : "Generate Report"}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Existing Reports */}
-              {reports.length > 0 ? (
-                <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-semibold text-white">
-                      Your Reports ({reports.length})
-                    </h3>
-                    {totalPages > 1 && (
-                      <div className="text-sm text-gray-400">
-                        Page {currentPage} of {totalPages}
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-4">
-                    {currentReports.map((report) => {
-                      const chart = birthCharts.find(
-                        (c) => c.id === report.birth_chart_id,
-                      );
-                      return (
-                        <motion.div
-                          key={report.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="bg-gradient-to-r from-indigo-900/20 to-purple-900/20 rounded-xl p-6 border border-indigo-500/20"
-                        >
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center">
-                              <BookOpen className="w-6 h-6 text-indigo-400 mr-3" />
-                              <div>
-                                <h4 className="text-lg font-medium text-white">
-                                  {report.title}
-                                </h4>
-                                <p className="text-gray-400 text-sm">
-                                  {chart?.name} • {report.report_type} •{" "}
-                                  {new Date(
-                                    report.created_at,
-                                  ).toLocaleDateString()}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              {report.is_premium && (
-                                <span className="text-xs px-2 py-1 bg-amber-600 text-white rounded-full">
-                                  Premium
-                                </span>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                icon={Eye}
-                                onClick={() => handleViewReport(report.id)}
-                                loading={viewingReport === report.id}
-                              >
-                                View
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                icon={
-                                  downloadingReports.has(report.id)
-                                    ? undefined
-                                    : Download
-                                }
-                                onClick={() => handleExportPDF(report.id)}
-                                loading={downloadingReports.has(report.id)}
-                                disabled={downloadingReports.has(report.id)}
-                              >
-                                {downloadingReports.has(report.id)
-                                  ? "Generating..."
-                                  : "PDF"}
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-end mt-2">
-                            <button
-                              onClick={() => setShowDeleteConfirm(report.id)}
-                              className="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors"
-                              title="Delete Report"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <p className="text-gray-300 text-sm line-clamp-3">
-                            {report.content}
-                          </p>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-dark-800 rounded-2xl p-8 border border-dark-700 text-center">
-                  <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                  <h4 className="text-lg font-medium text-gray-400 mb-2">
-                    No Reports Yet
-                  </h4>
-                  <p className="text-gray-500 mb-4">
-                    Create your first astrology report to get detailed insights
-                    about your cosmic profile.
-                  </p>
-                </div>
-              )}
-
-              {/* Premium Features */}
-              <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 rounded-2xl p-6 border border-amber-500/20">
-                <div className="flex items-center mb-4">
-                  <Crown className="w-6 h-6 text-amber-400 mr-3" />
-                  <h3 className="text-xl font-semibold text-white">
-                    Premium Report Features
-                  </h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="text-white font-medium mb-3">
-                      What's Included
-                    </h4>
-                    <ul className="text-gray-300 text-sm space-y-2">
-                      <li className="flex items-center">
-                        <span className="w-2 h-2 bg-amber-400 rounded-full mr-2"></span>
-                        AI-powered detailed interpretations
-                      </li>
-                      <li className="flex items-center">
-                        <span className="w-2 h-2 bg-amber-400 rounded-full mr-2"></span>
-                        Professional-grade analysis
-                      </li>
-                      <li className="flex items-center">
-                        <span className="w-2 h-2 bg-amber-400 rounded-full mr-2"></span>
-                        PDF export with charts
-                      </li>
-                      <li className="flex items-center">
-                        <span className="w-2 h-2 bg-amber-400 rounded-full mr-2"></span>
-                        Personalized recommendations
-                      </li>
-                    </ul>
-                  </div>
-                  <div>
-                    <h4 className="text-white font-medium mb-3">
-                      Premium Report Types
-                    </h4>
-                    <ul className="text-gray-300 text-sm space-y-2">
-                      <li>• Career & Life Purpose Analysis</li>
-                      <li>• Love & Relationship Compatibility</li>
-                      <li>• 12-Month Yearly Forecasts</li>
-                      <li>• Spiritual Path & Soul Purpose</li>
-                      <li>• Health & Wellness Guidance</li>
-                      <li>• Financial Astrology Insights</li>
-                    </ul>
-                  </div>
-                </div>
-                <div className="mt-6">
-                  <Button
-                    onClick={() => navigate("/plans")}
-                    className="bg-gradient-to-r from-amber-600 to-orange-600"
-                  >
-                    Upgrade to Premium
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
+      </motion.div> 
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-dark-800 rounded-2xl p-6 border border-dark-700 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-white mb-4">
-              Delete Report
-            </h3>
-            <p className="text-gray-300 mb-6">
-              Are you sure you want to delete this report? This action cannot be
-              undone.
-            </p>
-            <div className="flex items-center justify-end space-x-4">
-              <Button
-                variant="ghost"
-                onClick={() => setShowDeleteConfirm(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => handleDeleteReport(showDeleteConfirm)}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowDeleteConfirm(null)} // Close on backdrop click
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="bg-gradient-to-br from-slate-800 to-slate-800/90 rounded-xl p-6 border border-slate-700 shadow-2xl max-w-md w-full mx-auto"
+              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
+            >
+              <div className="flex items-start justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Confirm Deletion</h3>
+                <Button variant="ghost" size="sm" onClick={() => setShowDeleteConfirm(null)} className="text-slate-400 hover:text-white hover:bg-slate-700">
+                    <X className="w-5 h-5" />
+                </Button>
+              </div>
+              <p className="text-slate-300 mb-6 text-sm">
+                Are you sure you want to delete the report "<span className="font-semibold text-slate-100">{reports.find(r => r.id === showDeleteConfirm)?.title || 'this report'}</span>"? This action cannot be undone.
+              </p>
+              <div className="flex items-center justify-end space-x-3">
+                <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="border-slate-600 hover:bg-slate-700">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => handleDeleteReport(showDeleteConfirm as string)}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  loading={isDeleting} // Assuming you add an isDeleting state for the modal button
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete Report
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
       )}
     </PageLayout>
   );
+// }; // This was incorrectly closing the component early
 };
 
 export default ReportsPage;

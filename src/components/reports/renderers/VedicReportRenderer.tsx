@@ -65,15 +65,15 @@ const VedicReportRenderer: React.FC<VedicReportRendererProps> = ({
   ];
 
   return (
-    <div className="vedic-report bg-gradient-to-br from-orange-900 via-red-900 to-yellow-900 text-white min-h-screen">
+    <div className="vedic-report bg-dark-800 text-white min-h-screen" style={{ background: "linear-gradient(135deg, #121212 0%, #202020 100%)" }}>
       <div className="container mx-auto px-6 py-8 max-w-6xl">
-        {/* Sacred Geometry Background */}
+        {/* Sacred Geometry Background with consistent opacity */}
         <div className="fixed inset-0 opacity-5 pointer-events-none">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0ic3RhciIgeD0iMCIgeT0iMCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cG9seWdvbiBwb2ludHM9IjIwLDMgMjYsMTQgMzcsMTQgMjgsMjMgMzEsMzQgMjAsMjcgOSwzNCAxMiwyMyAzLDE0IDE0LDE0IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjc3RhcikiLz48L3N2Zz4=')]" />
+          <div className="absolute inset-0 bg-pattern-sacred" />
         </div>
 
         {sections.map((section) => (
-          <div key={section.id} className="mb-8 relative z-10">
+          <div key={section.id} className="mb-10 relative z-10">
             {section.component}
           </div>
         ))}

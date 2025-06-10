@@ -32,6 +32,7 @@ const VedicPage: React.FC = () => {
     createVedicReport,
     reports,
     fetchReports,
+    exportReportToPDF,
   } = useAstrologyStore();
   const [selectedChart, setSelectedChart] = useState<string>("");
   const [activeView, setActiveView] = useState<
@@ -39,6 +40,7 @@ const VedicPage: React.FC = () => {
   >("overview");
   const [selectedChartData, setSelectedChartData] = useState<any>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [exportingPDFs, setExportingPDFs] = useState<Set<string>>(new Set());
   const [isMobile, setIsMobile] = useState(false);
   const [isPremiumUser, setIsPremiumUser] = useState(false);
 
@@ -452,9 +454,22 @@ const VedicPage: React.FC = () => {
                                 size="sm"
                                 variant="ghost"
                                 icon={Download}
-                                onClick={() => {
-                                  // TODO: Implement PDF export
-                                  console.log("Export PDF:", report.id);
+                                loading={exportingPDFs.has(report.id)}
+                                onClick={async () => {
+                                  try {
+                                    setExportingPDFs(prev => new Set(prev).add(report.id));
+                                    await exportReportToPDF(report.id);
+                                    console.log("PDF export successful for:", report.id);
+                                  } catch (error) {
+                                    console.error("PDF export failed:", error);
+                                    alert("Failed to generate PDF. Please try again later.");
+                                  } finally {
+                                    setExportingPDFs(prev => {
+                                      const newSet = new Set(prev);
+                                      newSet.delete(report.id);
+                                      return newSet;
+                                    });
+                                  }
                                 }}
                               >
                                 PDF

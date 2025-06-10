@@ -1,0 +1,85 @@
+/* Print-friendly styles for report PDF generation */
+
+/* Global print settings */
+@media print {
+  /* Reset page margins */
+  @page {
+    margin: 10mm;
+    size: A4 portrait;
+  }
+
+  /* General print settings - force background colors and images to print */
+  body {
+    -webkit-print-color-adjust: exact !important; /* Chrome/Safari/Edge */
+    /* Firefox now uses print-color-adjust instead of color-adjust */
+    print-color-adjust: exact !important; /* CSS standard */
+  }
+}
+
+/* Page break control - apply these to any HTML element */
+.page-break-before {
+  page-break-before: always;
+}
+
+.page-break-after {
+  page-break-after: always;
+}
+
+.avoid-break {
+  page-break-inside: avoid;
+}
+
+/* Avoid breaks for important elements */
+table, figure, ul, ol, dl, blockquote, .chart-container, .data-table, .info-card {
+  page-break-inside: avoid !important;
+}
+
+/* Avoid page breaks after headings */
+h1, h2, h3, h4, h5, h6 {
+  page-break-after: avoid !important;
+}
+
+/* Keep at least 4 lines together when breaking paragraphs */
+p {
+  orphans: 4;
+  widows: 4;
+}
+
+/* Ensure sections stay together when possible */
+.report-section {
+  page-break-inside: avoid;
+}
+
+/* For very large sections that must break, add suitable breaking points */
+.section-break-allowed {
+  page-break-inside: auto;
+}
+
+/* Special rule for images to ensure they're not cut */
+img {
+  max-width: 100% !important;
+  page-break-inside: avoid !important;
+}
+
+/* Charts should never be broken */
+.birth-chart, .transit-chart, .aspect-chart {
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
+
+/* Tables with specific classes */
+.aspect-table, .planet-table, .house-table, .zodiac-table {
+  page-break-inside: avoid !important;
+}
+
+/* Extra space at the bottom of sections to improve readability */
+.report-section {
+  padding-bottom: 15px;
+  margin-bottom: 20px;
+}
+
+/* Ensure no background cutoffs */
+.bg-gradient, .bg-color, [class*="bg-dark-"] {
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}

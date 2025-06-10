@@ -1,6 +1,17 @@
 import React from "react";
 import { BirthChart } from "../../../store/astrologyStore";
-import { Star, Circle } from "lucide-react";
+import { Circle, Star } from "lucide-react";
+import { reportTheme } from "../themes/reportTheme";
+
+// Define planet interface to fix type issues
+interface Planet {
+  name: string;
+  longitude?: number;
+  [key: string]: any; // For other planet properties
+}
+
+// Define planet symbols type for type safety
+type PlanetName = 'Sun' | 'Moon' | 'Mercury' | 'Venus' | 'Mars' | 'Jupiter' | 'Saturn' | 'Uranus' | 'Neptune' | 'Pluto';
 
 interface ChartVisualizationProps {
   chartData: BirthChart;
@@ -25,15 +36,22 @@ const ChartVisualization: React.FC<ChartVisualizationProps> = ({
   };
 
   const renderWesternChart = () => {
+    // Get dimensions from theme
+    const chartSize = reportTheme.charts.size.large;
+    const centerPoint = chartSize / 2;
+    
     return (
-      <div className="relative w-96 h-96 mx-auto">
+      <div 
+        className="relative mx-auto chart-container"
+        style={{ width: `${chartSize}px`, height: `${chartSize}px` }}
+      >
         {/* Outer Circle */}
-        <div className="absolute inset-0 border-4 border-blue-400 rounded-full">
+        <div className="absolute inset-0 border-4 rounded-full" style={{ borderColor: reportTheme.colors.primary }}>
           {/* Inner Circle */}
-          <div className="absolute inset-8 border-2 border-blue-300 rounded-full">
+          <div className="absolute inset-12 border-2 rounded-full" style={{ borderColor: reportTheme.colors.primary, opacity: 0.7 }}>
             {/* Center */}
             <div className="absolute inset-1/2 transform -translate-x-1/2 -translate-y-1/2">
-              <Star className="w-8 h-8 text-yellow-400" />
+              <Star className="w-10 h-10" style={{ color: reportTheme.colors.primary }} />
             </div>
           </div>
         </div>
@@ -42,20 +60,24 @@ const ChartVisualization: React.FC<ChartVisualizationProps> = ({
         {[...Array(12)].map((_, i) => {
           const angle = i * 30 - 90;
           const radian = (angle * Math.PI) / 180;
-          const x1 = 192 + 160 * Math.cos(radian);
-          const y1 = 192 + 160 * Math.sin(radian);
-          const x2 = 192 + 180 * Math.cos(radian);
-          const y2 = 192 + 180 * Math.sin(radian);
+          // Adjusted positioning for larger chart
+          const outerRadius = centerPoint * 0.9;
+          const lineLength = centerPoint * 0.12;
+          
+          const x1 = centerPoint + outerRadius * Math.cos(radian);
+          const y1 = centerPoint + outerRadius * Math.sin(radian);
 
           return (
             <div
               key={i}
-              className="absolute w-0.5 bg-blue-300 origin-bottom"
+              className="absolute origin-bottom"
               style={{
                 left: `${x1}px`,
                 top: `${y1}px`,
-                width: "2px",
-                height: "20px",
+                width: "3px",
+                height: `${lineLength}px`,
+                backgroundColor: reportTheme.colors.secondary,
+                opacity: 0.8,
                 transform: `rotate(${angle + 90}deg)`,
                 transformOrigin: "center bottom",
               }}
@@ -80,14 +102,20 @@ const ChartVisualization: React.FC<ChartVisualizationProps> = ({
         ].map((sign, i) => {
           const angle = i * 30 - 75;
           const radian = (angle * Math.PI) / 180;
-          const x = 192 + 140 * Math.cos(radian);
-          const y = 192 + 140 * Math.sin(radian);
+          const radius = centerPoint * 0.75;
+          const x = centerPoint + radius * Math.cos(radian);
+          const y = centerPoint + radius * Math.sin(radian);
 
           return (
             <div
               key={i}
-              className="absolute text-2xl text-blue-300 font-bold transform -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${x}px`, top: `${y}px` }}
+              className="absolute text-3xl font-bold transform -translate-x-1/2 -translate-y-1/2"
+              style={{ 
+                left: `${x}px`, 
+                top: `${y}px`,
+                color: reportTheme.colors.primary, 
+                textShadow: "0 0 4px rgba(0,0,0,0.5)"
+              }}
             >
               {sign}
             </div>
@@ -95,13 +123,14 @@ const ChartVisualization: React.FC<ChartVisualizationProps> = ({
         })}
 
         {/* Planets */}
-        {chartData.chart_data?.planets?.slice(0, 10).map((planet, i) => {
+        {chartData.chart_data?.planets?.slice(0, 10).map((planet: Planet, i: number) => {
           const angle = (planet.longitude || i * 36) - 90;
           const radian = (angle * Math.PI) / 180;
-          const x = 192 + 100 * Math.cos(radian);
-          const y = 192 + 100 * Math.sin(radian);
+          const radius = centerPoint * 0.55;
+          const x = centerPoint + radius * Math.cos(radian);
+          const y = centerPoint + radius * Math.sin(radian);
 
-          const planetSymbols = {
+          const planetSymbols: Record<PlanetName, string> = {
             Sun: "☉",
             Moon: "☽",
             Mercury: "☿",
@@ -114,14 +143,29 @@ const ChartVisualization: React.FC<ChartVisualizationProps> = ({
             Pluto: "♇",
           };
 
+          // Get planet color from theme color array
+          const planetColors = reportTheme.colors.charts.western;
+          const planetColor = planetColors[i % planetColors.length];
+          
+          // Type-safe check for planet symbol
+          const planetName = planet.name as PlanetName;
+          const planetSymbol = planetName && planetSymbols[planetName] ? planetSymbols[planetName] : "●";
+
           return (
             <div
               key={i}
-              className="absolute text-xl text-yellow-400 font-bold transform -translate-x-1/2 -translate-y-1/2 bg-blue-900/80 rounded-full w-8 h-8 flex items-center justify-center"
-              style={{ left: `${x}px`, top: `${y}px` }}
+              className="absolute text-2xl font-bold transform -translate-x-1/2 -translate-y-1/2 rounded-full w-12 h-12 flex items-center justify-center"
+              style={{ 
+                left: `${x}px`, 
+                top: `${y}px`, 
+                backgroundColor: "rgba(18, 18, 18, 0.8)",
+                color: planetColor,
+                border: `2px solid ${planetColor}`,
+                boxShadow: `0 0 8px rgba(255, 255, 255, 0.2)`,
+              }}
               title={planet.name}
             >
-              {planetSymbols[planet.name] || "●"}
+              {planetSymbol}
             </div>
           );
         })}
@@ -130,17 +174,17 @@ const ChartVisualization: React.FC<ChartVisualizationProps> = ({
   };
 
   return (
-    <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
-      <h2 className="text-2xl font-bold text-white mb-8 text-center flex items-center justify-center">
-        <Circle className="w-6 h-6 mr-3 text-blue-400" />
+    <div className="report-card">
+      <h2 className="report-section-title flex items-center justify-center">
+        <Circle className="w-6 h-6 mr-3" style={{ color: reportTheme.colors.primary }} />
         {getChartTitle()}
       </h2>
 
-      <div className="flex justify-center">{renderWesternChart()}</div>
+      <div className="flex justify-center my-8">{renderWesternChart()}</div>
 
       <div className="mt-8 text-center">
-        <p className="text-gray-300 text-sm italic">
-          Interactive chart visualization showing planetary positions at birth
+        <p className="text-sm italic" style={{ color: reportTheme.colors.text.secondary }}>
+          Chart visualization showing planetary positions at birth time
         </p>
       </div>
     </div>

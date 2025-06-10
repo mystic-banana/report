@@ -1,27 +1,185 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
-import { useAstrologyStore, BirthChart } from "../../store/astrologyStore";
+import { useAstrologyStore } from "../../store/astrologyStore";
+import { useAuthStore } from "../../store/authStore";
+// Import BirthChart type directly from astrologyStore
+import type { BirthChart } from "../../store/astrologyStore";
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import { ChevronRight, ChevronLeft, FileText, Check } from "lucide-react";
 
 interface ReportWizardProps {
   onClose: () => void;
+  selectedTemplateId?: string;
+  selectedTemplateType?: string;
+  selectedChartId?: string;
 }
 
-const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
+const ReportWizard: React.FC<ReportWizardProps> = ({
+  onClose,
+  selectedTemplateId,
+  selectedTemplateType,
+  selectedChartId,
+}): React.ReactNode => {
   const navigate = useNavigate();
-  const { birthCharts, addReport } = useAstrologyStore();
+  const { birthCharts, addReport, createReportFromTemplate } =
+    useAstrologyStore();
+  const { user } = useAuthStore();
   const [step, setStep] = useState(1);
   const [selectedChart, setSelectedChart] = useState<BirthChart | null>(null);
-  const [reportType, setReportType] = useState<string>("");
+  const [reportType, setReportType] = useState<string>(
+    selectedTemplateType || "",
+  );
   const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedReportId, setGeneratedReportId] = useState<string | null>(
     null,
   );
+
+  // Initialize selectedChart from selectedChartId if provided
+  useEffect(() => {
+    if (selectedChartId && birthCharts.length > 0) {
+      console.log(`Looking for birth chart with ID: ${selectedChartId}`);
+      const chart = birthCharts.find(chart => chart.id === selectedChartId);
+      if (chart) {
+        console.log(`Found birth chart: ${chart.name}`);
+        setSelectedChart(chart);
+      } else {
+        console.warn(`Could not find birth chart with ID: ${selectedChartId}`);
+      }
+    }
+  }, [birthCharts, selectedChartId]);
+
+  // Skip report type selection if a template is already selected
+  useEffect(() => {
+    if (selectedTemplateType && step === 2) {
+      setStep(3);
+    }
+  }, [selectedTemplateType, step]);
+
+  const handleNext = () => {
+    if (step === 1 && !selectedChart) {
+      setError("Please select a birth chart");
+      return;
+    }
+    if (step === 2 && !reportType) {
+      setError("Please select a report type");
+      return;
+    }
+    setError(null);
+    setStep(step + 1);
+  };
+
+  const handleBack = () => {
+    setStep(step - 1);
+  };
+
+  const generateReport = async () => {
+    if (!selectedChart || !reportType) {
+      setError("Missing required information");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      let reportResult;
+
+      // If a template was selected, use createReportFromTemplate
+      if (selectedTemplateId && selectedChart?.id) {
+        console.log(
+          "Creating report from template:",
+          selectedTemplateId,
+          selectedChart.id
+        );
+        
+        if (!user?.id) {
+          throw new Error("User ID is required to create a report. Please log in.");
+        }
+
+        reportResult = await createReportFromTemplate(
+          selectedTemplateId,
+          selectedChart.id,
+          user.id,
+          {
+            isPremium,
+          }
+        );
+
+        if (!reportResult) {
+          throw new Error("Failed to create report from template");
+        }
+
+        // Add the report to local state
+        await addReport(reportResult);
+        setGeneratedReportId(reportResult.id);
+      } else {
+        // Otherwise use the standard report creation flow
+        // Create a report title
+        const reportTitle = `${selectedChart?.name || "Unknown"}'s ${reportType.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())} Report`;
+
+        // Check if user is logged in
+        if (!user?.id) {
+          throw new Error("User ID is required to create a report. Please log in.");
+        }
+
+        // First, create the report record in the database
+        const { data: reportData, error: reportError } = await supabase
+          .from("astrology_reports")
+          .insert([
+            {
+              title: reportTitle,
+              report_type: reportType,
+              birth_chart_id: selectedChart?.id,
+              user_id: user.id,
+              is_premium: isPremium,
+              content: "Generating report content...", // Placeholder content
+            },
+          ])
+          .select()
+          .single();
+
+        if (reportError) throw reportError;
+
+        // Simulate report generation
+        setTimeout(async () => {
+          const sampleContent = `**Introduction**\n\nThis is a ${reportType} report for ${selectedChart?.name || "Unknown"}, born on ${selectedChart?.birth_date ? new Date(selectedChart.birth_date).toLocaleDateString() : "Unknown"}.\n\n**Planetary Positions**\n\nThe Sun is in ${selectedChart?.chart_data?.planets?.find((p: any) => p.name === "Sun")?.sign || "Unknown"}.\nThe Moon is in ${selectedChart?.chart_data?.planets?.find((p: any) => p.name === "Moon")?.sign || "Unknown"}.\n\n**Interpretation**\n\nThis combination suggests a personality that is both [interpretation based on Sun sign] and emotionally [interpretation based on Moon sign].`;
+
+          // Update the report with the generated content
+          const { error: updateError } = await supabase
+            .from("astrology_reports")
+            .update({
+              content: sampleContent,
+            })
+            .eq("id", reportData.id);
+
+          if (updateError) {
+            console.error("Error updating report:", updateError);
+          } else {
+            // Add to local state
+            addReport({
+              ...reportData,
+              content: sampleContent,
+            });
+
+            setGeneratedReportId(reportData.id);
+          }
+        }, 2000);
+
+        // Set the generated report ID to show success state
+        setGeneratedReportId(reportData.id);
+      }
+    } catch (err: unknown) {
+      console.error("Error generating report:", err);
+      const errorMessage = err instanceof Error ? err.message : "Please try again";
+      setError(`Failed to generate report: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const reportTypes = [
     {
@@ -75,97 +233,6 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
     },
   ];
 
-  const handleNext = () => {
-    if (step === 1 && !selectedChart) {
-      setError("Please select a birth chart");
-      return;
-    }
-    if (step === 2 && !reportType) {
-      setError("Please select a report type");
-      return;
-    }
-    setError(null);
-    setStep(step + 1);
-  };
-
-  const handleBack = () => {
-    setStep(step - 1);
-  };
-
-  const generateReport = async () => {
-    if (!selectedChart || !reportType) {
-      setError("Missing required information");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Create a report title
-      const reportTitle = `${selectedChart.name}'s ${reportType.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} Report`;
-
-      // In a real implementation, you would call your report generation API here
-      // For now, we'll simulate it with a timeout
-
-      // First, create the report record in the database
-      const { data: reportData, error: reportError } = await supabase
-        .from("astrology_reports")
-        .insert([
-          {
-            title: reportTitle,
-            report_type: reportType,
-            birth_chart_id: selectedChart.id,
-            is_premium: isPremium,
-            content: "Generating report content...", // Placeholder content
-            status: "pending",
-          },
-        ])
-        .select()
-        .single();
-
-      if (reportError) throw reportError;
-
-      // In a real implementation, you would now call your backend to generate the report content
-      // For this example, we'll simulate it with a timeout and update the record
-
-      // Simulate report generation
-      setTimeout(async () => {
-        const sampleContent = `**Introduction**\n\nThis is a ${reportType} report for ${selectedChart.name}, born on ${new Date(selectedChart.birth_date).toLocaleDateString()}.\n\n**Planetary Positions**\n\nThe Sun is in ${selectedChart.chart_data?.planets.find((p) => p.name === "Sun")?.sign || "Unknown"}.\nThe Moon is in ${selectedChart.chart_data?.planets.find((p) => p.name === "Moon")?.sign || "Unknown"}.\n\n**Interpretation**\n\nThis combination suggests a personality that is both [interpretation based on Sun sign] and emotionally [interpretation based on Moon sign].`;
-
-        // Update the report with the generated content
-        const { error: updateError } = await supabase
-          .from("astrology_reports")
-          .update({
-            content: sampleContent,
-            status: "completed",
-          })
-          .eq("id", reportData.id);
-
-        if (updateError) {
-          console.error("Error updating report:", updateError);
-        } else {
-          // Add to local state
-          addReport({
-            ...reportData,
-            content: sampleContent,
-            status: "completed",
-          });
-
-          setGeneratedReportId(reportData.id);
-        }
-      }, 2000);
-
-      // Set the generated report ID to show success state
-      setGeneratedReportId(reportData.id);
-    } catch (err) {
-      console.error("Error generating report:", err);
-      setError("Failed to generate report. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const renderStepContent = () => {
     switch (step) {
       case 1:
@@ -178,7 +245,7 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
               Choose a birth chart to generate a report for:
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-4">
               {birthCharts.map((chart) => (
                 <div
                   key={chart.id}
@@ -197,7 +264,7 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
                         {chart.birth_time && `, ${chart.birth_time}`}
                       </p>
                       {chart.birth_location && (
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-gray-400 mt-0.5 sm:mt-1">
                           {chart.birth_location.city},{" "}
                           {chart.birth_location.country}
                         </p>
@@ -215,7 +282,7 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
 
             {birthCharts.length === 0 && (
               <div className="text-center py-8">
-                <p className="text-gray-400 mb-4">
+                <p className="text-gray-400 mb-4 sm:mb-6">
                   You don't have any birth charts yet.
                 </p>
                 <Button
@@ -239,7 +306,7 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
               Choose the type of report you want to generate:
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-4">
               {reportTypes.map((type) => (
                 <div
                   key={type.id}
@@ -253,7 +320,7 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
                     setIsPremium(type.premium);
                   }}
                 >
-                  <div className="h-32 bg-gray-700 relative">
+                  <div className="h-24 sm:h-28 md:h-32 bg-gray-700 relative">
                     <img
                       src={type.image}
                       alt={type.name}
@@ -265,8 +332,8 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
                       </div>
                     )}
                   </div>
-                  <div className="p-4">
-                    <h3 className="font-medium text-white">{type.name}</h3>
+                  <div className="p-3 sm:p-4">
+                    <h3 className="text-sm sm:text-base font-medium text-white">{type.name}</h3>
                     <p className="text-sm text-gray-400 mt-1">
                       {type.description}
                     </p>
@@ -284,37 +351,34 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
               Confirm Report Details
             </h2>
 
-            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-400">Birth Chart</p>
-                  <p className="text-white font-medium">
-                    {selectedChart?.name}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {selectedChart &&
-                      new Date(selectedChart.birth_date).toLocaleDateString()}
-                    {selectedChart?.birth_time &&
-                      `, ${selectedChart.birth_time}`}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400">Report Type</p>
-                  <p className="text-white font-medium">
-                    {reportType
-                      .replace(/-/g, " ")
-                      .replace(/\b\w/g, (l) => l.toUpperCase())}
-                    {isPremium && (
-                      <span className="ml-2 text-xs bg-amber-500 text-black px-2 py-0.5 rounded-full">
-                        PREMIUM
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
+            <div className="space-y-3 sm:space-y-4 bg-dark-800 p-3 sm:p-6 rounded-lg">
+              <h3 className="text-base sm:text-lg font-medium text-white">Birth Chart</h3>
+              <p className="text-white font-medium">
+                {selectedChart?.name}
+              </p>
+              <p className="text-sm text-gray-500">
+                {selectedChart &&
+                  new Date(selectedChart.birth_date).toLocaleDateString()}
+                {selectedChart?.birth_time &&
+                  `, ${selectedChart.birth_time}`}
+              </p>
             </div>
 
-            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+            <div className="space-y-3 sm:space-y-4 bg-dark-800 p-3 sm:p-6 rounded-lg">
+              <h3 className="text-base sm:text-lg font-medium text-white">Report Type</h3>
+              <p className="text-white font-medium">
+                {reportType
+                  .replace(/-/g, " ")
+                  .replace(/\b\w/g, (l) => l.toUpperCase())}
+                {isPremium && (
+                  <span className="ml-2 text-xs bg-amber-500 text-black px-2 py-0.5 rounded-full">
+                    PREMIUM
+                  </span>
+                )}
+              </p>
+            </div>
+
+            <div className="space-y-3 sm:space-y-4 bg-dark-800 p-3 sm:p-6 rounded-lg">
               <h3 className="font-medium text-white mb-2">What's included:</h3>
               <ul className="space-y-2">
                 <li className="flex items-start">
@@ -364,10 +428,10 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
                 <div className="w-16 h-16 bg-green-500 rounded-full mx-auto flex items-center justify-center mb-4">
                   <Check className="w-8 h-8 text-white" />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  Report Generated!
+                <h2 className="text-lg sm:text-xl font-semibold text-white mb-2 sm:mb-4">
+                  Report Successfully Generated
                 </h2>
-                <p className="text-gray-400 mb-6">
+                <p className="text-gray-400 mb-4 sm:mb-6">
                   Your report has been successfully created.
                 </p>
                 <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -387,7 +451,7 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
                 </div>
               </div>
             ) : (
-              <div className="py-8">
+              <div className="space-y-3 sm:space-y-4 bg-dark-800 p-3 sm:p-6 rounded-lg">
                 <h2 className="text-xl font-semibold text-white mb-4">
                   Ready to Generate Report
                 </h2>
@@ -409,20 +473,20 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-dark-900 rounded-2xl w-full max-w-4xl">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-dark-900 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="p-6 border-b border-dark-700">
-          <h1 className="text-2xl font-bold text-white">Create New Report</h1>
+        <div className="p-4 sm:p-6 border-b border-dark-700">
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Create New Report</h1>
         </div>
 
-        {/* Progress Steps */}
-        <div className="px-6 pt-6">
-          <div className="flex items-center justify-between mb-8">
+        {/* Progress Steps - Responsive */}
+        <div className="px-4 sm:px-6 pt-6">
+          <div className="relative flex items-center justify-between mb-8 gap-1 sm:gap-2">
             {[1, 2, 3, 4].map((stepNumber) => (
-              <div key={stepNumber} className="flex flex-col items-center">
+              <div key={stepNumber} className="flex flex-1 flex-col items-center z-10">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${
                     step === stepNumber
                       ? "bg-amber-500 text-black"
                       : step > stepNumber
@@ -431,12 +495,12 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
                   }`}
                 >
                   {step > stepNumber ? (
-                    <Check className="w-5 h-5" />
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5" />
                   ) : (
                     stepNumber
                   )}
                 </div>
-                <span className="text-xs text-gray-400 mt-2">
+                <span className="text-xs text-gray-400 mt-1 sm:mt-2 hidden xs:block">
                   {stepNumber === 1 && "Chart"}
                   {stepNumber === 2 && "Type"}
                   {stepNumber === 3 && "Review"}
@@ -446,7 +510,7 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
             ))}
 
             {/* Progress line */}
-            <div className="absolute h-0.5 bg-gray-700 w-[calc(100%-120px)] left-[60px] top-[6.5rem] -z-10">
+            <div className="absolute h-0.5 bg-gray-700 w-[80%] left-[10%] top-[1.05rem] sm:top-[1.2rem] -z-0 hidden sm:block">
               <div
                 className="h-full bg-amber-500 transition-all duration-300"
                 style={{ width: `${(step - 1) * 33.33}%` }}
@@ -456,7 +520,7 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="px-6 py-6">
+        <div className="px-4 sm:px-6 py-4 sm:py-6">
           {renderStepContent()}
 
           {error && (
@@ -467,7 +531,7 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-dark-700 flex justify-between">
+        <div className="p-4 sm:p-6 border-t border-dark-700 flex justify-between">
           {step > 1 && step !== 4 && (
             <Button variant="outline" onClick={handleBack} icon={ChevronLeft}>
               Back
@@ -476,13 +540,14 @@ const ReportWizard: React.FC<ReportWizardProps> = ({ onClose }) => {
           {step === 1 && <div></div>}
           {step === 4 && generatedReportId && <div></div>}
 
-          {step < 4 && (
+          {step !== 4 && (
             <Button
               variant="primary"
               onClick={handleNext}
-              iconRight={ChevronRight}
+              className="flex items-center gap-1"
             >
               {step === 3 ? "Finish" : "Next"}
+              <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           )}
           {step === 4 && !generatedReportId && !loading && (

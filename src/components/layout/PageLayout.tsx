@@ -1,37 +1,33 @@
-import React, { useEffect } from "react";
+import React from "react";
+import { Helmet } from "react-helmet-async";
 import Header from "./Header";
 import Footer from "./Footer";
 
 interface PageLayoutProps {
   children: React.ReactNode;
-  title?: string;
   className?: string;
   showHeader?: boolean;
   showFooter?: boolean;
+  title?: string;
 }
 
 const PageLayout: React.FC<PageLayoutProps> = ({
   children,
-  title,
   className = "",
   showHeader = true,
   showFooter = true,
+  title,
 }) => {
-  useEffect(() => {
-    if (title) {
-      document.title = `${title} | Mystic Banana`;
-    } else {
-      document.title = "Mystic Banana - Modern Spiritual Magazine";
-    }
-  }, [title]);
-
   return (
-    <div
-      className={`flex flex-col min-h-screen bg-magazine-primary text-magazine-text ${className}`}
-    >
+    <div className={`min-h-screen bg-slate-900 ${className}`}>
+      <Helmet>
+        {title && <title>{title}</title>}
+        <meta name="theme-color" content="#0f172a" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      </Helmet>
       {showHeader && <Header />}
-      <main className={`flex-grow ${showHeader ? "pt-16" : ""}`}>
-        {children}
+      <main className="flex-1">
+        <div className="pt-16">{children}</div>
       </main>
       {showFooter && <Footer />}
     </div>

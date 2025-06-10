@@ -48,7 +48,6 @@ const CompatibilityPage: React.FC = () => {
   >("all");
   const [isMobile, setIsMobile] = useState(false);
   const [isPremiumUser, setIsPremiumUser] = useState(false);
-
   // Detect mobile device
   useEffect(() => {
     const checkMobile = () => {
@@ -79,7 +78,7 @@ const CompatibilityPage: React.FC = () => {
       };
       loadData();
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, fetchBirthCharts, fetchCompatibilityReports]);
 
   const handleGenerateCompatibility = async () => {
     if (
@@ -359,6 +358,12 @@ const CompatibilityPage: React.FC = () => {
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <LoadingSpinner size="lg" />
+              <div className="ml-4">
+                <p className="text-white font-medium">
+                  Loading compatibility data...
+                </p>
+                <p className="text-gray-400 text-sm">This may take a moment</p>
+              </div>
             </div>
           ) : (
             <div className="space-y-8">

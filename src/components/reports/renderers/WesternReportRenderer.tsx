@@ -61,10 +61,15 @@ const WesternReportRenderer: React.FC<WesternReportRendererProps> = ({
   ];
 
   return (
-    <div className="western-report bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white min-h-screen">
-      <div className="container mx-auto px-6 py-8 max-w-6xl">
+    <div className="western-report bg-dark-800 text-white min-h-screen" style={{ background: "linear-gradient(135deg, #121212 0%, #202020 100%)" }}>
+      <div className="container mx-auto px-6 py-8 max-w-6xl relative z-10">
+        {/* Subtle pattern overlay */}
+        <div className="fixed inset-0 opacity-5 pointer-events-none">
+          <div className="absolute inset-0 bg-pattern-stars" />
+        </div>
+        
         {sections.map((section) => (
-          <div key={section.id} className="mb-8">
+          <div key={section.id} className="mb-10">
             {section.component}
           </div>
         ))}

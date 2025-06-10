@@ -35,7 +35,7 @@ const DashboardOverview: React.FC = () => {
       // Calculate estimated reading time based on reports
       const calculateReadingTime = () => {
         // Assume average reading time of 10 minutes per report
-        const totalMinutes = reports.length * 10;
+        const totalMinutes = (reports?.length || 0) * 10;
         if (totalMinutes < 60) {
           setTotalReadingTime(`${totalMinutes}m`);
         } else {
@@ -51,7 +51,7 @@ const DashboardOverview: React.FC = () => {
     }
   }, [
     user,
-    reports.length,
+    reports,
     fetchBirthCharts,
     fetchReports,
     fetchCompatibilityReports,
@@ -60,21 +60,21 @@ const DashboardOverview: React.FC = () => {
   const stats = [
     {
       label: "Birth Charts",
-      value: birthCharts.length.toString(),
+      value: (birthCharts?.length || 0).toString(),
       icon: <Star className="w-5 h-5" />,
       color: "text-purple-400",
       link: "/astrology/birth-chart",
     },
     {
       label: "Reports",
-      value: reports.length.toString(),
+      value: (reports?.length || 0).toString(),
       icon: <FileText className="w-5 h-5" />,
       color: "text-teal-400",
       link: "/astrology/reports",
     },
     {
       label: "Compatibility",
-      value: compatibilityReports.length.toString(),
+      value: (compatibilityReports?.length || 0).toString(),
       icon: <Users className="w-5 h-5" />,
       color: "text-pink-400",
       link: "/astrology/compatibility",

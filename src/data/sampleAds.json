@@ -1,0 +1,130 @@
+{
+  "sample_ads": [
+    {
+      "title": "Discover Your Birth Chart",
+      "ad_type": "html",
+      "content": "<div class='bg-gradient-to-br from-purple-600/20 to-indigo-600/20 border border-purple-500/30 rounded-lg p-6 text-center backdrop-blur-sm'><div class='w-12 h-12 mx-auto mb-4 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full flex items-center justify-center shadow-lg'><svg class='w-6 h-6 text-white' fill='currentColor' viewBox='0 0 20 20'><path d='M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z'/></svg></div><h3 class='text-white font-bold text-lg mb-2'>Unlock Your Cosmic Blueprint</h3><p class='text-gray-300 text-sm mb-4 leading-relaxed'>Get personalized insights into your personality, relationships, and life path with your detailed birth chart analysis.</p><div class='inline-flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 rounded-full text-white font-medium hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105'><span>✨ Create Your Chart</span><svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 5l7 7-7 7'/></svg></div></div>",
+      "cta_text": "✨ Create Your Chart",
+      "target_url": "/astrology/birth-chart",
+      "zones": ["homepage-sidebar", "article-sidebar"],
+      "priority": 5
+    },
+    {
+      "title": "Premium Vedic Astrology",
+      "ad_type": "html",
+      "content": "<div class='bg-gradient-to-br from-amber-600/20 to-orange-600/20 border border-amber-500/30 rounded-lg p-6 text-center backdrop-blur-sm relative overflow-hidden'><div class='absolute inset-0 bg-gradient-to-br from-amber-500/5 to-orange-500/5'></div><div class='relative z-10'><div class='w-12 h-12 mx-auto mb-4 bg-gradient-to-br from-amber-500 to-orange-500 rounded-full flex items-center justify-center shadow-lg'><span class='text-white text-xl'>🕉️</span></div><h3 class='text-white font-bold text-lg mb-2'>Ancient Vedic Wisdom</h3><p class='text-gray-300 text-sm mb-4 leading-relaxed'>Explore the profound depths of Jyotish astrology with Nakshatras, Dashas, and traditional remedial measures.</p><div class='inline-flex items-center space-x-2 bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-2 rounded-full text-white font-medium hover:from-amber-700 hover:to-orange-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105'><span>🌟 Explore Vedic</span><svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 5l7 7-7 7'/></svg></div></div></div>",
+      "cta_text": "🌟 Explore Vedic",
+      "target_url": "/astrology/vedic",
+      "zones": ["article-top", "podcast-header"],
+      "priority": 4
+    },
+    {
+      "title": "Compatibility Analysis",
+      "ad_type": "html",
+      "content": "<div class='bg-gradient-to-br from-pink-600/20 to-rose-600/20 border border-pink-500/30 rounded-lg p-6 text-center backdrop-blur-sm relative'><div class='absolute top-2 right-2 text-pink-300 opacity-20'><svg class='w-8 h-8' fill='currentColor' viewBox='0 0 20 20'><path fill-rule='evenodd' d='M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z' clip-rule='evenodd'/></svg></div><div class='w-12 h-12 mx-auto mb-4 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full flex items-center justify-center shadow-lg'><span class='text-white text-xl'>💕</span></div><h3 class='text-white font-bold text-lg mb-2'>Love & Relationships</h3><p class='text-gray-300 text-sm mb-4 leading-relaxed'>Discover your romantic compatibility and understand the cosmic dynamics between you and your partner.</p><div class='inline-flex items-center space-x-2 bg-gradient-to-r from-pink-600 to-rose-600 px-4 py-2 rounded-full text-white font-medium hover:from-pink-700 hover:to-rose-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105'><span>💖 Check Compatibility</span><svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 5l7 7-7 7'/></svg></div></div>",
+      "cta_text": "💖 Check Compatibility",
+      "target_url": "/astrology/compatibility",
+      "zones": ["magazine-sidebar", "podcast-sidebar"],
+      "priority": 3
+    },
+    {
+      "title": "Daily Horoscopes",
+      "ad_type": "html",
+      "content": "<div class='bg-gradient-to-br from-blue-600/20 to-cyan-600/20 border border-blue-500/30 rounded-lg p-4 text-center backdrop-blur-sm relative overflow-hidden'><div class='absolute inset-0 bg-gradient-to-br from-blue-500/5 to-cyan-500/5'></div><div class='relative z-10'><div class='flex items-center justify-center space-x-2 mb-3'><span class='text-2xl animate-pulse'>🌙</span><span class='text-2xl animate-pulse' style='animation-delay: 0.5s'>☀️</span></div><h3 class='text-white font-bold text-base mb-2'>Your Daily Cosmic Guide</h3><p class='text-gray-300 text-xs mb-3 leading-relaxed'>Get personalized daily insights and guidance from the stars.</p><div class='inline-flex items-center space-x-1 bg-gradient-to-r from-blue-600 to-cyan-600 px-3 py-1.5 rounded-full text-white text-sm font-medium hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105'><span>📅 Today's Horoscope</span></div></div></div>",
+      "cta_text": "📅 Today's Horoscope",
+      "target_url": "/astrology/horoscopes",
+      "zones": ["mobile-banner", "dashboard-widget"],
+      "priority": 2
+    },
+    {
+      "title": "Premium Membership",
+      "ad_type": "html",
+      "content": "<div class='bg-gradient-to-br from-purple-900/40 to-indigo-900/40 border-2 border-purple-500/50 rounded-lg p-6 text-center relative overflow-hidden backdrop-blur-sm'><div class='absolute inset-0 bg-gradient-to-br from-purple-500/10 to-indigo-500/10'></div><div class='absolute top-0 right-0 bg-gradient-to-br from-amber-400 to-orange-400 text-black text-xs font-bold px-2 py-1 rounded-bl-lg shadow-lg'>PREMIUM</div><div class='relative z-10'><div class='w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full flex items-center justify-center shadow-xl'><span class='text-white text-2xl'>👑</span></div><h3 class='text-white font-bold text-xl mb-2'>Unlock Premium Features</h3><p class='text-gray-300 text-sm mb-4 leading-relaxed'>Access advanced reports, unlimited charts, and exclusive astrology content with our premium membership.</p><div class='space-y-2 mb-4'><div class='flex items-center justify-center space-x-2 text-green-400 text-sm'><svg class='w-4 h-4' fill='currentColor' viewBox='0 0 20 20'><path fill-rule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clip-rule='evenodd'/></svg><span>Unlimited Birth Charts</span></div><div class='flex items-center justify-center space-x-2 text-green-400 text-sm'><svg class='w-4 h-4' fill='currentColor' viewBox='0 0 20 20'><path fill-rule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clip-rule='evenodd'/></svg><span>Advanced Reports</span></div><div class='flex items-center justify-center space-x-2 text-green-400 text-sm'><svg class='w-4 h-4' fill='currentColor' viewBox='0 0 20 20'><path fill-rule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clip-rule='evenodd'/></svg><span>Priority Support</span></div></div><div class='inline-flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-3 rounded-full text-white font-bold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105'><span>🚀 Upgrade Now</span></div></div></div>",
+      "cta_text": "🚀 Upgrade Now",
+      "target_url": "/plans",
+      "zones": ["homepage-hero", "magazine-header"],
+      "priority": 8
+    },
+    {
+      "title": "Astrology Podcast",
+      "ad_type": "html",
+      "content": "<div class='bg-gradient-to-br from-green-600/20 to-teal-600/20 border border-green-500/30 rounded-lg p-4 text-center backdrop-blur-sm relative overflow-hidden'><div class='absolute inset-0 bg-gradient-to-br from-green-500/5 to-teal-500/5'></div><div class='relative z-10'><div class='w-10 h-10 mx-auto mb-3 bg-gradient-to-br from-green-500 to-teal-500 rounded-full flex items-center justify-center shadow-lg'><svg class='w-5 h-5 text-white' fill='currentColor' viewBox='0 0 20 20'><path d='M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.369 4.369 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z'/></svg></div><h3 class='text-white font-bold text-base mb-2'>Cosmic Conversations</h3><p class='text-gray-300 text-xs mb-3 leading-relaxed'>Listen to expert astrologers discuss the latest cosmic events and their meanings.</p><div class='inline-flex items-center space-x-1 bg-gradient-to-r from-green-600 to-teal-600 px-3 py-1.5 rounded-full text-white text-sm font-medium hover:from-green-700 hover:to-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105'><span>🎧 Listen Now</span></div></div></div>",
+      "cta_text": "🎧 Listen Now",
+      "target_url": "/podcasts",
+      "zones": ["article-bottom", "podcast-detail-top"],
+      "priority": 3
+    }
+  ],
+  "ad_templates": [
+    {
+      "id": "astrology-feature",
+      "name": "Astrology Feature Promotion",
+      "description": "Template for promoting astrology features with cosmic styling",
+      "content": "<div class='bg-gradient-to-br from-{color1}-600/20 to-{color2}-600/20 border border-{color1}-500/30 rounded-lg p-6 text-center backdrop-blur-sm'><div class='w-12 h-12 mx-auto mb-4 bg-gradient-to-br from-{color1}-500 to-{color2}-500 rounded-full flex items-center justify-center shadow-lg'><span class='text-white text-xl'>{icon}</span></div><h3 class='text-white font-bold text-lg mb-2'>{title}</h3><p class='text-gray-300 text-sm mb-4 leading-relaxed'>{description}</p><div class='inline-flex items-center space-x-2 bg-gradient-to-r from-{color1}-600 to-{color2}-600 px-4 py-2 rounded-full text-white font-medium hover:from-{color1}-700 hover:to-{color2}-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105'><span>{cta_text}</span><svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 5l7 7-7 7'/></svg></div></div>",
+      "category": "astrology",
+      "recommended_zones": ["homepage-sidebar", "article-sidebar", "magazine-sidebar"]
+    },
+    {
+      "id": "premium-upgrade",
+      "name": "Premium Upgrade Banner",
+      "description": "Template for promoting premium membership with benefits list",
+      "content": "<div class='bg-gradient-to-br from-purple-900/40 to-indigo-900/40 border-2 border-purple-500/50 rounded-lg p-6 text-center relative overflow-hidden backdrop-blur-sm'><div class='absolute top-0 right-0 bg-gradient-to-br from-amber-400 to-orange-400 text-black text-xs font-bold px-2 py-1 rounded-bl-lg shadow-lg'>PREMIUM</div><div class='w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full flex items-center justify-center shadow-xl'><span class='text-white text-2xl'>{icon}</span></div><h3 class='text-white font-bold text-xl mb-2'>{title}</h3><p class='text-gray-300 text-sm mb-4 leading-relaxed'>{description}</p><div class='space-y-2 mb-4'>{benefits}</div><div class='inline-flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-3 rounded-full text-white font-bold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105'><span>{cta_text}</span></div></div>",
+      "category": "premium",
+      "recommended_zones": ["homepage-hero", "magazine-header", "article-top"]
+    },
+    {
+      "id": "compact-feature",
+      "name": "Compact Feature Banner",
+      "description": "Template for smaller ad spaces like mobile and widgets",
+      "content": "<div class='bg-gradient-to-br from-{color1}-600/20 to-{color2}-600/20 border border-{color1}-500/30 rounded-lg p-4 text-center backdrop-blur-sm relative overflow-hidden'><div class='absolute inset-0 bg-gradient-to-br from-{color1}-500/5 to-{color2}-500/5'></div><div class='relative z-10'><div class='w-10 h-10 mx-auto mb-3 bg-gradient-to-br from-{color1}-500 to-{color2}-500 rounded-full flex items-center justify-center shadow-lg'><span class='text-white text-lg'>{icon}</span></div><h3 class='text-white font-bold text-base mb-2'>{title}</h3><p class='text-gray-300 text-xs mb-3 leading-relaxed'>{description}</p><div class='inline-flex items-center space-x-1 bg-gradient-to-r from-{color1}-600 to-{color2}-600 px-3 py-1.5 rounded-full text-white text-sm font-medium hover:from-{color1}-700 hover:to-{color2}-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105'><span>{cta_text}</span></div></div></div>",
+      "category": "feature",
+      "recommended_zones": ["mobile-banner", "dashboard-widget", "podcast-sidebar"]
+    },
+    {
+      "id": "text-only",
+      "name": "Text-Only Banner",
+      "description": "Simple text-based ad template for minimal designs",
+      "content": "<div class='bg-gradient-to-r from-gray-800/80 to-gray-700/80 border border-gray-600/50 rounded-lg p-4 text-center backdrop-blur-sm'><h3 class='text-white font-bold text-base mb-2'>{title}</h3><p class='text-gray-300 text-sm mb-3 leading-relaxed'>{description}</p><div class='inline-flex items-center space-x-1 bg-gradient-to-r from-accent-600 to-accent-500 px-3 py-1.5 rounded-full text-white text-sm font-medium hover:from-accent-700 hover:to-accent-600 transition-all duration-300'><span>{cta_text}</span></div></div>",
+      "category": "general",
+      "recommended_zones": ["article-bottom", "podcast-detail-top"]
+    }
+  ],
+  "color_schemes": [
+    {
+      "name": "Cosmic Purple",
+      "primary": "purple",
+      "secondary": "indigo",
+      "description": "Mystical and spiritual"
+    },
+    {
+      "name": "Solar Gold",
+      "primary": "amber",
+      "secondary": "orange",
+      "description": "Warm and energetic"
+    },
+    {
+      "name": "Lunar Blue",
+      "primary": "blue",
+      "secondary": "cyan",
+      "description": "Calm and intuitive"
+    },
+    {
+      "name": "Venus Pink",
+      "primary": "pink",
+      "secondary": "rose",
+      "description": "Love and relationships"
+    },
+    {
+      "name": "Earth Green",
+      "primary": "green",
+      "secondary": "teal",
+      "description": "Growth and healing"
+    },
+    {
+      "name": "Mercury Violet",
+      "primary": "violet",
+      "secondary": "purple",
+      "description": "Communication and wisdom"
+    }
+  ]
+}

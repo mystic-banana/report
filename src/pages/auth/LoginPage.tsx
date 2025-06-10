@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Moon, Star, Eye, EyeOff } from 'lucide-react';
@@ -9,9 +9,13 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [adminRequired, setAdminRequired] = useState(false);
-  const { login, isLoading, error } = useAuthStore(); // Removed unused 'user' variable
+  const [localLoading, setLocalLoading] = useState(false);
+  const { login, isLoading: storeLoading, error } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // Use combined loading state for better UI reliability
+  const isLoading = storeLoading || localLoading;
   
   // Check if we were redirected from admin page
   useEffect(() => {
@@ -21,82 +25,72 @@ const LoginPage: React.FC = () => {
     }
   }, [location]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      // Set a timeout to prevent the login from hanging indefinitely
-      const loginPromise = login(email, password);
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          reject(new Error('Login timed out after 10 seconds'));
-        }, 10000);
+    console.log('Login form submitted');
+    
+    // Validate inputs
+    if (!email.trim() || !password.trim()) {
+      useAuthStore.setState({ 
+        error: 'Please enter both email and password'
       });
+      return;
+    }
+
+    // Use local loading state to ensure UI feedback even if store state gets stuck
+    setLocalLoading(true);
+    
+    try {
+      // Direct login without race conditions
+      await login(email, password);
       
-      // Race between the login and the timeout
-      await Promise.race([loginPromise, timeoutPromise]);
-      
-      // After login completes, directly check the auth state
+      // Immediately check auth state
       const authState = useAuthStore.getState();
-      console.log('Auth state after login:', { 
-        user: authState.user ? 'exists' : 'null',
+      console.log('Auth state after login attempt:', { 
+        hasUser: !!authState.user,
         isAdmin: authState.user?.isAdmin,
-        isLoading: authState.isLoading,
         error: authState.error
       });
       
-      // If we have a user, check if they're an admin
-      if (authState.user) {
-        // If admin access is required but user is not admin
-        if (adminRequired && !authState.user.isAdmin) {
-          console.log('Admin access required but user is not an admin');
-          useAuthStore.setState({ 
-            error: 'Admin access required. You do not have admin privileges.'
-          });
-          return;
-        }
-        
-        // Otherwise redirect based on user type
-        if (authState.user.isAdmin) {
-          console.log('Admin user detected, redirecting to admin dashboard');
-          navigate('/admin/dashboard');
-        } else {
-          console.log('Regular user detected, redirecting to dashboard');
-          navigate('/dashboard');
-        }
+      // If there's an error in the store, show it
+      if (authState.error) {
+        setLocalLoading(false);
         return;
       }
       
-      // If we don't have a user yet but no error, wait a bit and try once more
-      if (!authState.error) {
-        console.log('No user yet but no error, waiting briefly...');
-        setTimeout(() => {
-          const finalAuthState = useAuthStore.getState();
-          if (finalAuthState.user) {
-            // Double-check admin requirement
-            if (adminRequired && !finalAuthState.user.isAdmin) {
-              console.log('Admin access required but user is not an admin');
-              useAuthStore.setState({ 
-                error: 'Admin access required. You do not have admin privileges.'
-              });
-              return;
-            }
-            
-            if (finalAuthState.user.isAdmin) {
-              navigate('/admin/dashboard');
-            } else {
-              navigate('/dashboard');
-            }
-          } else {
-            console.log('Still no user after waiting, staying on login page');
-          }
-        }, 1000);
+      // If we have a user, handle admin requirements and redirect
+      if (authState.user) {
+        if (adminRequired && !authState.user.isAdmin) {
+          useAuthStore.setState({ 
+            error: 'Admin access required. You do not have admin privileges.'
+          });
+          setLocalLoading(false);
+          return;
+        }
+        
+        // Navigate based on user type
+        if (authState.user.isAdmin) {
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/dashboard');
+        }
+      } else {
+        // If no user but also no error, something went wrong
+        console.error('Login completed but no user available');
+        useAuthStore.setState({ 
+          error: 'Login failed. Please try again.'
+        });
+        setLocalLoading(false);
       }
-    } catch (err: any) { // Type assertion to allow accessing .message property
-      console.error('Login error:', err);
-      // Ensure loading state is reset on error
-      useAuthStore.setState({ isLoading: false, error: err.message || 'Login failed' });
+    } catch (err: any) {
+      // Handle login error
+      console.error('Login failed with exception:', err);
+      useAuthStore.setState({ 
+        error: err.message || 'Login failed. Please try again.'
+      });
+      setLocalLoading(false);
     }
-  };
+  }, [email, password, login, adminRequired, navigate]);
 
   
   return (
@@ -212,7 +206,10 @@ const LoginPage: React.FC = () => {
                 className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white bg-mystic-accent-600 hover:bg-mystic-accent-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-mystic-accent-500 disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading ? (
-                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span className="ml-2">Signing in...</span>
+                  </div>
                 ) : (
                   "Sign In"
                 )}

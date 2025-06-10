@@ -1,558 +1,453 @@
-import React, { useState, useEffect } from "react";
-import { AstrologyReport } from "../../store/astrologyStore";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
+import { toast } from "react-hot-toast";
+import { AstrologyReport } from "../../store/astrologyStore";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
+import { FileText, X, Menu, ArrowLeft } from "lucide-react";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import Button from "../ui/Button";
-import ReportRenderer from "./ReportRenderer";
-import { Download, Eye, X, Crown } from "lucide-react";
 
+// Define interfaces for type safety
+interface BirthChart {
+  id: string;
+  name: string;
+  birth_date: string;
+  birth_time: string;
+  birth_location: any; // JSONB from database
+  chart_data?: string;
+  city?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  created_at?: string;
+  user_id?: string;
+}
+
+// Define interface for component props
 interface HTMLReportViewerProps {
-  report: AstrologyReport;
-  onClose: () => void;
+  report?: AstrologyReport; // The report object with id, title, content
+  reportContent?: string; // Direct HTML/markdown content (optional)
+  onClose?: () => void; // Optional close handler
 }
 
 const HTMLReportViewer: React.FC<HTMLReportViewerProps> = ({
   report,
+  reportContent,
   onClose,
 }) => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [chartData, setChartData] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<"modern" | "legacy">("modern");
+  const [chartData, setChartData] = useState<BirthChart | null>(null);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const fetchChartData = async () => {
-      setLoading(true);
-      try {
-        // Get birth chart data for the report
-        const { data: chartInfo, error } = await supabase
-          .from("astrology_reports")
-          .select(
-            "*, birth_charts!inner(name, birth_date, birth_time, chart_data, birth_location)",
-          )
-          .eq("id", report.id)
-          .single();
-
-        if (error) throw error;
-
-        setChartData(chartInfo.birth_charts);
-      } catch (error) {
-        console.error("Error fetching chart data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchChartData();
-  }, [report.id]);
-
-  const generateLegacyHTML = () => {
-    if (!chartData) return "";
-
-    const isVedic = report.report_type.includes("vedic");
-    const isHellenistic = report.report_type.includes("hellenistic");
-    const isChinese = report.report_type.includes("chinese");
-    const isPremium = report.is_premium;
-    const userName = chartData?.name || "User";
-    const birthDate = chartData?.birth_date
-      ? new Date(chartData.birth_date).toLocaleDateString()
-      : "";
-    const birthTime = chartData?.birth_time || "";
-    const birthLocation = chartData?.birth_location;
-
-    const getReportTypeTitle = () => {
-      if (isVedic) return "Vedic Astrology Analysis";
-      if (isHellenistic) return "Hellenistic Astrology Analysis";
-      if (isChinese) return "Chinese Astrology Analysis";
-      return "Western Astrology Analysis";
-    };
-
-    const getReportTypeIcon = () => {
-      if (isVedic) return "🕉️";
-      if (isHellenistic) return "🏛️";
-      if (isChinese) return "☯️";
-      return "⭐";
-    };
-
-    return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${report.title}</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-            color: #e5e5e5;
-            line-height: 1.6;
-            min-height: 100vh;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 3rem;
-            padding: 2rem;
-            background: linear-gradient(135deg, #4A148C 0%, #7E57C2 100%);
-            border-radius: 1rem;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="stars" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="1" fill="%23ffffff" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23stars)"/></svg>');
-            opacity: 0.3;
-        }
-        
-        .header-content {
-            position: relative;
-            z-index: 1;
-        }
-        
-        .report-title {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: white;
-            margin-bottom: 0.5rem;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-        
-        .report-subtitle {
-            font-size: 1.2rem;
-            color: rgba(255,255,255,0.9);
-            margin-bottom: 1rem;
-        }
-        
-        .premium-badge {
-            display: inline-flex;
-            align-items: center;
-            background: linear-gradient(135deg, #F59E0B, #D97706);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 2rem;
-            font-size: 0.875rem;
-            font-weight: 600;
-            margin-top: 1rem;
-        }
-        
-        .birth-info {
-            background: rgba(45, 45, 45, 0.8);
-            border-radius: 1rem;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            border: 1px solid #404040;
-        }
-        
-        .birth-info h3 {
-            color: #F59E0B;
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-        }
-        
-        .birth-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1rem;
-        }
-        
-        .birth-detail {
-            background: rgba(26, 26, 26, 0.5);
-            padding: 1rem;
-            border-radius: 0.5rem;
-            border-left: 4px solid #F59E0B;
-        }
-        
-        .birth-detail label {
-            color: #737373;
-            font-size: 0.875rem;
-            display: block;
-            margin-bottom: 0.25rem;
-        }
-        
-        .birth-detail value {
-            color: #e5e5e5;
-            font-weight: 600;
-        }
-        
-        .content-section {
-            background: rgba(45, 45, 45, 0.8);
-            border-radius: 1rem;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            border: 1px solid #404040;
-        }
-        
-        .section-title {
-            color: #F59E0B;
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            border-bottom: 2px solid #F59E0B;
-            padding-bottom: 0.5rem;
-        }
-        
-        .section-icon {
-            margin-right: 0.5rem;
-            font-size: 1.2rem;
-        }
-        
-        .content-text {
-            color: #e5e5e5;
-            line-height: 1.8;
-            font-size: 1rem;
-        }
-        
-        .content-text h1, .content-text h2, .content-text h3 {
-            color: #F59E0B;
-            margin: 1.5rem 0 1rem 0;
-        }
-        
-        .content-text h1 {
-            font-size: 1.8rem;
-            border-bottom: 2px solid #F59E0B;
-            padding-bottom: 0.5rem;
-        }
-        
-        .content-text h2 {
-            font-size: 1.4rem;
-        }
-        
-        .content-text h3 {
-            font-size: 1.2rem;
-        }
-        
-        .content-text p {
-            margin-bottom: 1rem;
-        }
-        
-        .content-text ul, .content-text ol {
-            margin-left: 1.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        .content-text li {
-            margin-bottom: 0.5rem;
-        }
-        
-        .footer {
-            text-align: center;
-            margin-top: 3rem;
-            padding: 2rem;
-            background: rgba(26, 26, 26, 0.8);
-            border-radius: 1rem;
-            border: 1px solid #404040;
-        }
-        
-        .footer-logo {
-            color: #F59E0B;
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-        
-        .footer-text {
-            color: #737373;
-            font-size: 0.875rem;
-        }
-        
-        .watermark {
-            position: fixed;
-            bottom: 1rem;
-            right: 1rem;
-            background: rgba(0, 0, 0, 0.8);
-            color: #737373;
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            font-size: 0.75rem;
-            z-index: 1000;
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
-            
-            .report-title {
-                font-size: 2rem;
-            }
-            
-            .birth-details {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        @media print {
-            body {
-                background: white;
-                color: black;
-            }
-            
-            .watermark {
-                display: none;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-content">
-                <h1 class="report-title">${report.title}</h1>
-                <p class="report-subtitle">Generated for ${userName}</p>
-                ${isPremium ? '<div class="premium-badge">👑 Premium Report</div>' : ""}
-            </div>
-        </div>
-        
-        <div class="birth-info">
-            <h3>⭐ Birth Information</h3>
-            <div class="birth-details">
-                <div class="birth-detail">
-                    <label>Name</label>
-                    <value>${userName}</value>
-                </div>
-                <div class="birth-detail">
-                    <label>Birth Date</label>
-                    <value>${birthDate}</value>
-                </div>
-                ${
-                  birthTime
-                    ? `
-                <div class="birth-detail">
-                    <label>Birth Time</label>
-                    <value>${birthTime}</value>
-                </div>
-                `
-                    : ""
-                }
-                ${
-                  birthLocation
-                    ? `
-                <div class="birth-detail">
-                    <label>Birth Location</label>
-                    <value>${birthLocation.city || ""}, ${birthLocation.country || ""}</value>
-                </div>
-                `
-                    : ""
-                }
-                <div class="birth-detail">
-                    <label>Report Type</label>
-                    <value>${report.report_type.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}</value>
-                </div>
-            </div>
-        </div>
-        
-        <div class="content-section">
-            <h2 class="section-title">
-                <span class="section-icon">${getReportTypeIcon()}</span>
-                ${getReportTypeTitle()}
-            </h2>
-            <div class="content-text">
-                ${formatReportContent(report.content)}
-            </div>
-        </div>
-        
-        <div class="footer">
-            <div class="footer-logo">MysticBanana</div>
-            <p class="footer-text">
-                Generated on ${new Date().toLocaleDateString()} • Professional Astrology Reports
-            </p>
-        </div>
-    </div>
+    // Clear previous state when report or content changes
+    setChartData(null);
     
-    <div class="watermark">
-        Generated by MysticBanana.com
-    </div>
-</body>
-</html>`;
-  };
-
-  const formatReportContent = (content: string) => {
-    return content
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\n\n/g, "</p><p>")
-      .replace(/\n/g, "<br>")
-      .replace(/^/, "<p>")
-      .replace(/$/, "</p>");
-  };
-
-  const downloadHTML = () => {
-    try {
-      let htmlContent = "";
-
-      if (viewMode === "modern") {
-        const reportElement = document.querySelector(".report-renderer");
-        if (reportElement) {
-          htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${report.title}</title>
-  <style>
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background: #0f0f23;
-      color: #e5e5e5;
-      line-height: 1.6;
+    // If we're just displaying content directly, skip chart data fetching
+    if (reportContent) {
+      console.log("Using direct report content, skipping chart data fetch");
+      setLoading(false);
+      return;
     }
-    .container { max-width: 1200px; margin: 0 auto; }
-    h1, h2, h3 { color: #f59e0b; }
-    .section { margin-bottom: 2rem; padding: 1.5rem; background: rgba(255,255,255,0.05); border-radius: 1rem; }
-    .grid { display: grid; gap: 1rem; }
-    .text-center { text-align: center; }
-    @media print { body { background: white; color: black; } }
-  </style>
-</head>
-<body>
-  <div class="container">
-    ${reportElement.innerHTML}
-  </div>
-</body>
-</html>`;
-        } else {
-          htmlContent = generateLegacyHTML();
+    
+    // Only fetch chart data if we have a report object
+    if (report?.id) {
+      fetchChartData();
+    } else {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report?.id, reportContent]);
+
+  const fetchChartData = async () => {
+    // Safety check: don't refetch if already fetching
+    if (!report?.id || loading) {
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      console.log(`Fetching detailed report data for report ID: ${report.id}`);
+      
+      // Direct query approach with simpler join that avoids column aliases
+      const { data: reportData, error: reportError } = await supabase
+        .from("astrology_reports")
+        .select()
+        .eq("id", report.id)
+        .single();
+
+      if (reportError || !reportData) {
+        console.error("Error fetching report:", reportError || "No report found");
+        toast.error("Failed to load report data");
+        return;
+      }
+      
+      // Only try to fetch birth chart if we have a valid ID
+      if (reportData.birth_chart_id) {
+        try {
+          const { data: birthChartData, error: chartError } = await supabase
+            .from("birth_charts")
+            .select("*")
+            .eq("id", reportData.birth_chart_id)
+            .single();
+            
+          if (!chartError && birthChartData) {
+            // Process the birth chart data to ensure all fields exist
+            const processedChartData: BirthChart = {
+              ...birthChartData,
+              // Handle JSONB birth_location safely
+              birth_location: birthChartData.birth_location || {}
+            };
+            setChartData(processedChartData);
+            
+            console.log("Successfully fetched birth chart data");
+          } else {
+            console.log("No birth chart found, continuing with report only");
+            setChartData(null);
+          }
+        } catch (chartError) {
+          console.error("Error fetching birth chart:", chartError);
+          // Continue with report only
+          setChartData(null);
         }
       } else {
-        htmlContent = generateLegacyHTML();
+        console.log("Report has no associated birth chart");
+        setChartData(null);
       }
-
-      const blob = new Blob([htmlContent], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${report.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("HTML download failed:", error);
+      console.error("Error in fetch process:", error);
+      toast.error("Failed to load report data. Please try again.");
+      setChartData(null);
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-dark-800 rounded-2xl p-8 max-w-md w-full mx-4">
-          <div className="text-center">
-            <LoadingSpinner size="lg" />
-            <p className="text-white mt-4">Loading report data...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!chartData) {
-    return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-dark-800 rounded-2xl p-8 max-w-md w-full mx-4">
-          <div className="text-center">
-            <p className="text-white mb-4">
-              Error: Could not load chart data for this report.
-            </p>
-            <Button onClick={onClose} variant="primary">
-              Close
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Navigate back to reports page
+  const handleBackClick = () => {
+    navigate("/astrology/reports");
+  };
+  
+  // Close functionality - ensure it navigates properly
+  const handleClose = () => {
+    if (onClose) onClose();
+    else navigate("/astrology/reports");
+  };
+  
+  /**
+   * Advanced PDF generation using jsPDF and html2canvas directly
+   * This approach offers better control and reliability across browsers
+   */
+  const handleDownloadPDF = async () => {
+    if (!reportRef.current) {
+      toast.error("Report content not ready. Please try again.");
+      return;
+    }
+    
+    // Prevent double-clicks
+    if (exportingPDF) {
+      return;
+    }
+    
+    setExportingPDF(true);
+    const toastId = toast.loading("Preparing your PDF report...");
+    
+    try {
+      // Document setup
+      const filename = `${report?.title || "Astrology Report"}.pdf`.replace(/[\/\\:*?"<>|]/g, "_");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+      
+      // Add metadata
+      pdf.setProperties({
+        title: report?.title || "Astrology Report",
+        subject: "Mystic Banana Astrology Report",
+        author: "Mystic Banana",
+        creator: "Mystic Banana Astrology App"
+      });
+      
+      // Shorter timeout for toast updates to prevent blocking
+      setTimeout(() => {
+        toast.loading("Rendering report content...", { id: toastId });
+      }, 100);
+      
+      // Simple fallback function in case of issues
+      const generateSimplePdf = () => {
+        const simplePdf = new jsPDF();
+        simplePdf.setFontSize(16);
+        simplePdf.text(report?.title || "Astrology Report", 20, 30);
+        
+        if (reportRef.current) {
+          const textContent = reportRef.current.innerText;
+          const lines = textContent.split("\n").filter(line => line.trim() !== "");
+          
+          simplePdf.setFontSize(11);
+          let yPosition = 50;
+          lines.slice(0, 30).forEach(line => {  
+            if (yPosition > 280) {
+              simplePdf.addPage();
+              yPosition = 20;
+            }
+            simplePdf.text(line.substring(0, 80), 20, yPosition);
+            yPosition += 10;
+          });
+        }
+        
+        return simplePdf;
+      };
+      
+      try {
+        // Render to canvas - with timeout to prevent UI blocking
+        setTimeout(async () => {
+          try {
+            // Use a more reliable approach for html2canvas
+            // Ensure reportRef.current is not null before proceeding
+            if (!reportRef.current) {
+              throw new Error("Report container not found");
+            }
+            
+            const canvas = await html2canvas(reportRef.current, {
+              scale: 1.5, // Reduced for better performance
+              useCORS: true,
+              logging: false,
+              allowTaint: true,
+              backgroundColor: "#ffffff"
+            });
+            
+            toast.loading("Creating PDF document...", { id: toastId });
+            
+            // Calculate dimensions
+            const imgData = canvas.toDataURL("image/jpeg", 0.9); // Slightly reduced quality for performance
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            
+            // Set margins
+            const margin = 10; // 10mm margin
+            const contentWidth = pageWidth - (margin * 2);
+            const contentHeight = (canvas.height * contentWidth) / canvas.width;
+            
+            // Add first page
+            pdf.addImage(imgData, "JPEG", margin, margin, contentWidth, contentHeight);
+            
+            // Handle multi-page content
+            let heightLeft = contentHeight - (pageHeight - margin * 2);
+            
+            // Add additional pages if content overflows
+            while (heightLeft > 0) {
+              pdf.addPage();
+              pdf.addImage(imgData, "JPEG", margin, margin - (contentHeight - heightLeft), contentWidth, contentHeight);
+              heightLeft -= (pageHeight - margin * 2);
+            }
+            
+            // Save the PDF
+            pdf.save(filename);
+            toast.success("PDF generated successfully!", { id: toastId });
+            setExportingPDF(false);
+          } catch (canvasError) {
+            console.error("Canvas generation error:", canvasError);
+            toast.loading("Using fallback rendering method...", { id: toastId });
+            
+            try {
+              // Use simple text fallback
+              const simplePdf = generateSimplePdf();
+              const fallbackFilename = `${report?.title || "Astrology-Report"}-simple.pdf`.replace(/[\/\\:*?"<>|]/g, "_");
+              simplePdf.save(fallbackFilename);
+              toast.success("Generated a simplified PDF version", { id: toastId });
+            } catch (finalError) {
+              console.error("Final fallback failed:", finalError);
+              toast.error("PDF generation failed. Please try again later.", { id: toastId });
+            }
+            setExportingPDF(false);
+          }
+        }, 100); // Small delay to prevent UI blocking
+      } catch (outerError) {
+        // This catch is for errors that might occur in the setTimeout setup
+        console.error("PDF outer process error:", outerError);
+        toast.error("Could not start PDF generation. Please try again.", { id: toastId });
+        setExportingPDF(false);
+      }
+    } catch (error) {
+      // This is for errors in the overall process setup
+      console.error("PDF generation failed:", error);
+      toast.error("PDF generation failed. Please try again.", { id: toastId });
+      setExportingPDF(false);
+    }
+    
+    // Safety timeout to clear exportingPDF if something goes wrong
+    // and the state gets stuck
+    setTimeout(() => {
+      if (exportingPDF) {
+        setExportingPDF(false);
+        toast.error("PDF generation timed out. Please try again.", { id: toastId });
+      }
+    }, 20000); // 20s timeout
+  };
+  
+  // Toggle mobile menu
+  const toggleMobileMenu = () => {
+    setShowMobileMenu(!showMobileMenu);
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-dark-900 rounded-2xl w-full max-w-6xl h-full max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-dark-700">
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-600 to-orange-600 rounded-lg flex items-center justify-center mr-3">
-              <Eye className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-white">
-                {report.title}
-              </h2>
-              <p className="text-gray-400 text-sm">
-                {report.report_type
-                  .replace(/-/g, " ")
-                  .replace(/\b\w/g, (l) => l.toUpperCase())}{" "}
-                Report
-                {report.is_premium && (
-                  <span className="ml-2 inline-flex items-center">
-                    <Crown className="w-3 h-3 text-amber-400 mr-1" />
-                    Premium
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              onClick={() =>
-                setViewMode(viewMode === "modern" ? "legacy" : "modern")
-              }
-              variant="outline"
-              size="sm"
-            >
-              {viewMode === "modern" ? "Legacy HTML" : "Modern View"}
-            </Button>
-            <Button
-              onClick={downloadHTML}
-              variant="outline"
-              size="sm"
-              icon={Download}
-            >
-              Download HTML
-            </Button>
-            <Button onClick={onClose} variant="ghost" size="sm" icon={X}>
-              Close
-            </Button>
-          </div>
+    <div className="relative w-full h-full flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      {/* Header with controls */}
+      <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleBackClick}
+            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
+            aria-label="Back to reports"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-lg md:text-xl font-bold truncate">
+            {report?.title || "Astrology Report"}
+          </h1>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-hidden">
-          {viewMode === "modern" ? (
-            <div className="w-full h-full overflow-y-auto bg-gray-900">
-              <ReportRenderer
-                report={report}
-                chartData={chartData}
-                className="h-full report-renderer"
-              />
-            </div>
-          ) : (
-            <iframe
-              srcDoc={generateLegacyHTML()}
-              className="w-full h-full border-0"
-              title="HTML Report Preview"
-            />
-          )}
+        <div className="flex items-center space-x-2">
+          {/* Desktop Actions */}
+          <div className="hidden md:flex items-center space-x-2">
+            <Button
+              onClick={handleDownloadPDF}
+              disabled={exportingPDF}
+              className="flex items-center"
+            >
+              {exportingPDF ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  <span>Generating PDF...</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-5 h-5 mr-1" />
+                  <span>Download PDF</span>
+                </>
+              )}
+            </Button>
+            <button
+              onClick={handleClose}
+              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
+              aria-label="Close report"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Mobile Menu Toggle */}
+          <button
+            className="md:hidden p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
+            onClick={toggleMobileMenu}
+            aria-label="Toggle menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
         </div>
+      </div>
+
+      {/* Mobile Menu */}
+      {showMobileMenu && (
+        <div className="md:hidden absolute top-14 left-0 right-0 z-10 bg-white dark:bg-gray-800 shadow-lg border-t border-gray-200 dark:border-gray-700">
+          <div className="p-4 space-y-4">
+            <button
+              onClick={handleBackClick}
+              className="w-full flex items-center justify-start text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400"
+            >
+              <ArrowLeft className="w-5 h-5 mr-1" />
+              <span>Back to Reports</span>
+            </button>
+            <Button
+              onClick={handleDownloadPDF}
+              disabled={exportingPDF}
+              className="w-full flex items-center justify-center"
+            >
+              {exportingPDF ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  <span>Generating PDF...</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-5 h-5 mr-1" />
+                  <span>Download PDF</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Main content area */}
+      <div className="flex-1 overflow-auto p-4">
+        {loading ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <LoadingSpinner size="lg" />
+          </div>
+        ) : report || reportContent ? (
+          <div
+            ref={reportRef}
+            className="report-container mx-auto max-w-4xl bg-white dark:bg-gray-800 shadow-sm rounded-lg p-6 md:p-8"
+          >
+            {/* If we have chart data, display it */}
+            {chartData && (
+              <div className="mb-8">
+                <h2 className="text-xl font-semibold mb-4">Birth Chart</h2>
+                {chartData?.chart_data && (
+                  <div
+                    className="chart-svg-container w-full max-w-md mx-auto"
+                    dangerouslySetInnerHTML={{ __html: chartData.chart_data }}
+                  />
+                )}
+                <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                  <p>
+                    <strong>Name:</strong> {chartData?.name || "Unknown"}
+                  </p>
+                  <p>
+                    <strong>Birth Date:</strong>{" "}
+                    {chartData?.birth_date ? new Date(chartData.birth_date).toLocaleDateString() : "Unknown"}
+                  </p>
+                  <p>
+                    <strong>Birth Time:</strong> {chartData?.birth_time || "Unknown"}
+                  </p>
+                  <p>
+                    <strong>Birth Location:</strong>{" "}
+                    {chartData.city && chartData.country
+                      ? `${chartData.city}, ${chartData.country}`
+                      : chartData.birth_location && typeof chartData.birth_location === 'object'
+                        ? `${chartData.birth_location.city || ''}, ${chartData.birth_location.country || ''}`
+                        : "Location not available"}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Display report content */}
+            <div className="prose dark:prose-invert max-w-none">
+              <h1 className="text-2xl font-bold mb-4">{report?.title || "Astrological Insights"}</h1>
+              {/* Safely render the content with fallback */}
+              {report?.content || reportContent ? (
+                <div dangerouslySetInnerHTML={{ __html: report?.content || reportContent || "" }} />
+              ) : (
+                <p>No report content available.</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full">
+            <p className="text-lg text-gray-500 dark:text-gray-400 mb-4">
+              No report data available
+            </p>
+            <Button onClick={handleBackClick}>Back to Reports</Button>
+          </div>
+        )}
       </div>
     </div>
   );

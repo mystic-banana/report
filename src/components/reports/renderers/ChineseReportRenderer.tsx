@@ -60,15 +60,15 @@ const ChineseReportRenderer: React.FC<ChineseReportRendererProps> = ({
   ];
 
   return (
-    <div className="chinese-report bg-gradient-to-br from-red-900 via-yellow-900 to-red-800 text-white min-h-screen">
+    <div className="chinese-report bg-dark-800 text-white min-h-screen" style={{ background: "linear-gradient(135deg, #121212 0%, #202020 100%)" }}>
       <div className="container mx-auto px-6 py-8 max-w-6xl">
-        {/* Dragon Pattern Background */}
-        <div className="fixed inset-0 opacity-10 pointer-events-none">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZHJhZ29uIiB4PSIwIiB5PSIwIiB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxjaXJjbGUgY3g9IjI1IiBjeT0iMjUiIHI9IjIwIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgZmlsbD0ibm9uZSIgb3BhY2l0eT0iMC4xIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2RyYWdvbikiLz48L3N2Zz4=')]" />
+        {/* Chinese Pattern Background with consistent opacity */}
+        <div className="fixed inset-0 opacity-5 pointer-events-none">
+          <div className="absolute inset-0 bg-pattern-chinese" />
         </div>
 
         {sections.map((section) => (
-          <div key={section.id} className="mb-8 relative z-10">
+          <div key={section.id} className="mb-10 relative z-10">
             {section.component}
           </div>
         ))}
